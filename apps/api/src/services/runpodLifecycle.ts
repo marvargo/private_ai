@@ -105,22 +105,47 @@ export function createQwenCoderPodTemplate(): RunPodPodTemplate {
 }
 
 export function createSmallTestPodTemplate(): RunPodPodTemplate {
+  const mode = process.env.RUNPOD_SMALL_TEST_MODE || 'mock-openai';
+  if (mode === 'vllm') {
+    return {
+      name: 'wyndme-small-test-vllm',
+      gpuCount: 1,
+      gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
+      volumeGb: 80,
+      containerImage: process.env.RUNPOD_SMALL_TEST_IMAGE || 'vllm/vllm-openai:latest',
+      ports: [{ containerPort: 8000, protocol: 'http' }],
+      env: {
+        MODEL_ID: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+        SERVED_MODEL_NAME: 'wyndme-small-test',
+        TENSOR_PARALLEL_SIZE: '1',
+        MAX_MODEL_LEN: '4096',
+      },
+      volumeMountPath: '/workspace/models',
+      startCommand: '--model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --served-model-name wyndme-small-test --host 0.0.0.0 --port 8000 --max-model-len 4096',
+      healthcheck: '/v1/models',
+      estimatedHourlyCost: 0.5,
+      modelRole: 'qa',
+    };
+  }
+
   return {
-    name: 'wyndme-small-test-vllm',
+    name: 'wyndme-small-test-mock-openai',
     gpuCount: 1,
     gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
-    volumeGb: 80,
-    containerImage: process.env.RUNPOD_SMALL_TEST_IMAGE || 'vllm/vllm-openai:latest',
-    ports: [{ containerPort: 8000, protocol: 'http' }],
+    volumeGb: 20,
+    containerImage: process.env.RUNPOD_SMALL_TEST_IMAGE || 'zerob13/mock-openai-api:latest',
+    ports: [{ containerPort: 3000, protocol: 'http' }],
     env: {
-      MODEL_ID: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
-      SERVED_MODEL_NAME: 'wyndme-small-test',
-      TENSOR_PARALLEL_SIZE: '1',
-      MAX_MODEL_LEN: '4096',
+      PORT: '3000',
+      HOST: '0.0.0.0',
+      VERBOSE: 'true',
+      MODEL_ID: 'mock-gpt-thinking',
+      SERVED_MODEL_NAME: 'mock-gpt-thinking',
+      VALIDATION_MODE: 'proxy-platform-validation-only',
     },
-    volumeMountPath: '/workspace/models',
-    startCommand: '--model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --served-model-name wyndme-small-test --host 0.0.0.0 --port 8000 --max-model-len 4096',
-    healthcheck: '/v1/models',
+    volumeMountPath: '/workspace/mock-openai',
+    startCommand: '',
+    healthcheck: '/health',
     estimatedHourlyCost: 0.5,
     modelRole: 'qa',
   };

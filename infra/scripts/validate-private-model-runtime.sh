@@ -38,6 +38,26 @@ const stream = process.env.STREAM === 'true';
 const apiKey = process.env.API_KEY;
 const headers = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
 const jsonHeaders = { 'content-type': 'application/json', ...headers };
+const { execFile } = await import('node:child_process');
+const { promisify } = await import('node:util');
+const execFileAsync = promisify(execFile);
+async function request(url, options = {}) {
+  try {
+    return await fetch(url, options);
+  } catch (error) {
+    const args = ['-4', '-sS', '-m', '60'];
+    for (const [key, value] of Object.entries(options.headers || {})) args.push('-H', `${key}: ${value}`);
+    if (options.method) args.push('-X', options.method);
+    if (options.body) args.push('--data', options.body);
+    args.push('-w', '\n__HTTP_STATUS__:%{http_code}', url);
+    const { stdout } = await execFileAsync('curl', args, { maxBuffer: 1024 * 1024 });
+    const marker = '\n__HTTP_STATUS__:';
+    const index = stdout.lastIndexOf(marker);
+    const body = index >= 0 ? stdout.slice(0, index) : stdout;
+    const status = index >= 0 ? Number(stdout.slice(index + marker.length).trim()) : 0;
+    return { ok: status >= 200 && status < 300, status, json: async () => JSON.parse(body || '{}'), text: async () => body };
+  }
+}
 const startedAll = Date.now();
 const result = { model: process.env.MODEL, endpoint, checks: {} };
 async function timed(name, fn) {
@@ -50,21 +70,21 @@ async function timed(name, fn) {
   }
 }
 await timed('models', async () => {
-  const response = await fetch(`${endpoint}/v1/models`, { headers });
+  const response = await request(`${endpoint}/v1/models`, { headers });
   const payload = await response.json().catch(() => ({}));
   const ids = Array.isArray(payload.data) ? payload.data.map((item) => item.id || item.root || item.name).filter(Boolean) : [];
   return { ok: response.ok && ids.length > 0 && (!expected || ids.some((id) => String(id).includes(expected))), status: response.status, modelIds: ids };
 });
 const modelName = expected || result.checks.models.modelIds?.[0] || 'private-model';
 await timed('chat', async () => {
-  const response = await fetch(`${endpoint}/v1/chat/completions`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 128 }) });
+  const response = await request(`${endpoint}/v1/chat/completions`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 128 }) });
   const payload = await response.json().catch(() => ({}));
   const text = (payload.choices?.[0]?.message?.content || payload.choices?.[0]?.text || '').trim();
   return { ok: response.ok && text.length > 0, status: response.status, text };
 });
 if (stream) {
   await timed('streaming', async () => {
-    const response = await fetch(`${endpoint}/v1/chat/completions`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 128, stream: true }) });
+    const response = await request(`${endpoint}/v1/chat/completions`, { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ model: modelName, messages: [{ role: 'user', content: prompt }], temperature: 0, max_tokens: 128, stream: true }) });
     const text = await response.text();
     return { ok: response.ok && text.length > 0, status: response.status, sample: text.slice(0, 500) };
   });

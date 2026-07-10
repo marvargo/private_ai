@@ -48,3 +48,11 @@ See `docs/FINAL_BUILD_REPORT.md` for the complete operator handoff, setup comman
 ## Private runtime validation status
 
 The platform includes `infra/scripts/validate-private-model-runtime.sh` and `POST /model/validate` for end-to-end private model validation. Live model validation was not run in the current environment because required backend-only provider credentials were absent. See `docs/model-runtime-validation.md` before any production launch.
+
+## Live validation status (2026-07-10)
+
+- RunPod lifecycle and proxy/platform validation passed with the mock OpenAI-compatible small-test image.
+- Real small-test AI inference is still blocked because the public vLLM/TinyLlama pod did not expose healthy `/v1/models` or `/v1/chat/completions`.
+- Qwen and Llama 405B have not been started and remain blocked until real small-test inference passes.
+- Supabase persistence rows were verified for the latest RunPod validation: ai_sessions, model_runtimes, cost_events, and audit_logs.
+- Last known passing GitHub Actions run: https://github.com/marvargo/private_ai/actions/runs/29111838177.

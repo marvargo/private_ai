@@ -109,6 +109,17 @@ export async function createTask(input: Omit<AiTask, 'id' | 'status' | 'resolved
   }
 }
 
+
+export async function claimNextQueuedTask(workerId: string, lockSeconds = 300) {
+  if (!persistenceEnabled()) return listLocalTasks().find((task) => task.status === 'queued');
+  try {
+    return await orchestratorRepository.claimNextQueuedTask(workerId, lockSeconds);
+  } catch (error) {
+    writeLocalAudit({ actorType: 'system', action: 'supabase.task_claim_failed', targetType: 'ai_task', status: 'failed', metadata: { message: error instanceof Error ? error.message : String(error) } });
+    return listLocalTasks().find((task) => task.status === 'queued');
+  }
+}
+
 export async function updateTaskStatus(taskId: string, status: TaskStatus, outputSummary?: string) {
   if (!persistenceEnabled()) return updateLocalTaskStatus(taskId, status, outputSummary);
   try {

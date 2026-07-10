@@ -24,6 +24,7 @@ import { cancelTask, retryTask, runTask } from '../services/taskExecutor.js';
 import { connectGitHubRepo, createGitHubBranch, createOrUpdateGitHubFile, listGitHubPullRequests, listGitHubRepos, openGitHubPullRequest, readGitHubActionsStatus, readGitHubFile, readGitHubTree, testGitHubToken } from '../services/githubService.js';
 import { applyMigrationDraft, connectSupabaseProject, generateMigrationDraft, listSupabaseProjects, readSupabaseProjectSchema, testSupabaseManagementConnection } from '../services/supabaseProjectService.js';
 import { validatePrivateModelRuntime } from '../services/modelValidation.js';
+import { latestRunPodValidationPersistence } from '../services/persistenceDiagnostics.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
 
@@ -84,6 +85,7 @@ export async function registerRoutes(app: FastifyInstance) {
     productionReadinessWarnings: productionReadinessWarnings(),
   }));
   app.get('/state', async () => snapshot());
+  app.get('/diagnostics/persistence/latest-runpod-validation', async () => latestRunPodValidationPersistence());
   app.get('/settings', async () => getSettings());
   app.patch('/settings', async (req) => { const updated = patchSettings(settingsPatchSchema.parse(req.body ?? {})); await writeAudit({ actorType: 'admin', action: 'settings.updated', targetType: 'app_settings', status: 'ok' }); return updated; });
   app.get('/models', async () => listPersistentModelRegistry());

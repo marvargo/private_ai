@@ -1,6 +1,6 @@
 import { AiTask, ConcreteModelRole } from '@wyndme/shared';
 import { privateChatCompletion } from './privateChat.js';
-import { listTasks, updateTaskStatus, writeAudit, writeTaskLog } from './orchestrator.js';
+import { claimNextQueuedTask, listTasks, updateTaskStatus, writeAudit, writeTaskLog } from './orchestrator.js';
 import { assertModelRuntimeHealthy } from './modelRuntimeHealth.js';
 import { selectModelForTask } from './modelRegistry.js';
 import { classifyTaskAction, evaluatePermission, permissionFromTools } from './permissionEngine.js';
@@ -76,8 +76,8 @@ export async function runTask(taskId: string, options: TaskExecutorOptions = {})
   }
 }
 
-export async function runNextQueuedTask(options: TaskExecutorOptions = {}) {
-  const task = (await listTasks()).find((item) => item.status === 'queued');
+export async function runNextQueuedTask(options: TaskExecutorOptions & { workerId?: string; lockSeconds?: number } = {}) {
+  const task = await claimNextQueuedTask(options.workerId ?? `worker-${process.pid}`, options.lockSeconds ?? 300);
   if (!task) return { ok: true, idle: true };
   return runTask(task.id, options);
 }

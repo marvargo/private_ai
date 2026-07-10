@@ -48,7 +48,9 @@ export async function runpodGraphql<T>(query: string, variables: Record<string, 
 
 export function endpointFromPorts(pod: any) {
   const ports = pod?.runtime?.ports ?? [];
-  const http = ports.find((port: any) => port.type === 'http' || port.protocol === 'http' || port.privatePort === 8000 || port.privatePort === 8001 || port.privatePort === 8002);
+  const preferredPorts = [3000, 8000, 8001, 8002];
+  const http = ports.find((port: any) => preferredPorts.includes(Number(port.privatePort)))
+    ?? ports.find((port: any) => port.type === 'http' || port.protocol === 'http');
   if (!http) return undefined;
   if (pod?.id && http.privatePort) return `https://${pod.id}-${http.privatePort}.proxy.runpod.net`;
   if (http.ip && http.publicPort) return `https://${http.ip}-${http.publicPort}.proxy.runpod.net`;
@@ -105,7 +107,7 @@ export async function createRunPodPod(template: RunPodPodTemplate) {
         volumeMountPath: template.volumeMountPath,
         ports: template.ports.map((port) => `${port.containerPort}/${port.protocol}`).join(','),
         env: Object.entries(template.env).map(([key, value]) => ({ key, value })),
-        dockerArgs: template.startCommand,
+        ...(template.startCommand ? { dockerArgs: template.startCommand } : {}),
       },
     },
   );

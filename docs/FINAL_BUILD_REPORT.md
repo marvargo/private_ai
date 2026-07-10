@@ -119,3 +119,11 @@ Run the GitHub Actions workflow, apply migrations in a staging Supabase project,
 - Still not validated: real RunPod pod creation, real model load, direct real `/v1/models`, direct real `/v1/chat/completions`, real streaming, dashboard chat against a live private endpoint, real task execution against Qwen/Llama, Supabase persistence with live credentials, cost event persistence, and audit persistence.
 
 See `docs/model-runtime-validation.md` for the exact validation attempt, blockers, and commands to run when credentials are available.
+
+## Live validation status (2026-07-10)
+
+- RunPod lifecycle and proxy/platform validation passed with the mock OpenAI-compatible small-test image.
+- Real small-test AI inference is still blocked because the public vLLM/TinyLlama pod did not expose healthy `/v1/models` or `/v1/chat/completions`.
+- Qwen and Llama 405B have not been started and remain blocked until real small-test inference passes.
+- Supabase persistence rows were verified for the latest RunPod validation: ai_sessions, model_runtimes, cost_events, and audit_logs.
+- Last known passing GitHub Actions run: https://github.com/marvargo/private_ai/actions/runs/29111838177.

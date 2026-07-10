@@ -1,1 +1,23 @@
-{"name":"wyndme-private-ai-infra","version":"0.1.0","private":true,"packageManager":"pnpm@9.15.4","scripts":{"dev":"pnpm -r --parallel dev","api:dev":"pnpm --filter @wyndme/api dev","dashboard:dev":"pnpm --filter @wyndme/dashboard dev","db:migrate":"echo 'Apply supabase/migrations in Supabase SQL editor or with Supabase CLI'","lint":"pnpm -r lint","typecheck":"pnpm -r typecheck","test":"pnpm -r test","build":"pnpm -r build"},"devDependencies":{"@types/node":"^22.10.7","typescript":"^5.7.3","vitest":"^2.1.8"}}
+{
+  "name": "wyndme-private-ai-infra",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.4",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "api:dev": "pnpm --filter @wyndme/api dev",
+    "dashboard:dev": "pnpm --filter @wyndme/dashboard dev",
+    "db:migrate": "echo 'Apply supabase/migrations in Supabase SQL editor or with Supabase CLI'",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "worker:dev": "pnpm --filter @wyndme/api worker:dev",
+    "worker:start": "pnpm --filter @wyndme/api worker:start"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

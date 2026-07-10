@@ -2,120 +2,102 @@
 
 Date: 2026-07-10
 
-## Credential presence check
+## Status summary
 
-No secret values were printed, logged, or committed. Backend-only credentials were loaded from the local ignored operator environment for this validation pass.
-
-| Variable | Status |
+| Area | Status |
 | --- | --- |
-| `RUNPOD_API_KEY` | present in ignored local environment |
-| `HF_TOKEN` | present in ignored local environment |
-| `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_SECRET_KEY` | present in ignored local environment |
-| `SUPABASE_ACCESS_TOKEN` | present in ignored local environment |
-| `ENCRYPTION_KEY` | present in ignored local environment |
-| `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL` | present in ignored local environment |
-| `SUPABASE_JWKS_URL` | present in ignored local environment |
-| `QWEN_SERVER_API_KEY` | not required for the small-test path |
-| `LLAMA_SERVER_API_KEY` | not required for the small-test path |
+| Backend credential checks | passed with backend-only local environment; no secret values printed or committed |
+| RunPod connection | live validated |
+| RunPod GPU catalog | live validated; H100/H200/B200-class targets visible |
+| Supabase diagnostics | live validated |
+| Small-test public vLLM/TinyLlama | failed live validation: endpoint returned waiting/404 instead of OpenAI-compatible JSON |
+| Small-test mock OpenAI proxy/platform validation | live validated |
+| Real small-test AI inference | blocked until a reliable TinyLlama/vLLM image is published or selected |
+| Qwen Coder | not run; blocked until real small-test inference passes |
+| Llama 405B | not run; blocked until small-test and Qwen pass |
 
-## Backend checks run
+## Backend diagnostics
 
-The API was started locally with a non-secret development `ADMIN_API_KEY=local-validation-key` so protected diagnostics could be exercised without exposing or committing real credentials.
+The local API was started with backend-only environment variables and a non-secret development `ADMIN_API_KEY=local-validation-key` for protected checks.
 
 | Check | Result |
 | --- | --- |
-| `GET /health` | passed: returned API health |
-| `GET /status` | passed: private-by-default true, max session hours 4, auto-stop true, no production readiness warnings |
-| `GET /models/access-check` | passed: Hugging Face metadata was visible for the enabled Llama and Qwen registry models |
-| `GET /runpod/test` | passed: RunPod account lookup succeeded |
-| `GET /runpod/gpu-targets` | passed: GPU catalog included 8x-capable H100/H200/B200-class targets |
-| `GET /supabase/diagnostics` | passed: REST, auth-admin, and model registry diagnostics succeeded |
+| `GET /health` | passed |
+| `GET /status` | passed |
+| `GET /models/access-check` | passed |
+| `GET /runpod/test` | passed |
+| `GET /runpod/gpu-targets` | passed |
+| `GET /supabase/diagnostics` | passed |
 
-## Small-test model validation
+## Phase 1 diagnosis: failed public vLLM endpoint
 
-Status: **failed live validation**.
+Observed with the public vLLM small-test pod:
 
-### Live RunPod lifecycle attempt
+- Pod creation worked.
+- Runtime status eventually exposed ports.
+- The stable proxy URL must use the pod ID and internal container port.
+- The attempted `/v1/models` endpoint returned waiting/404 responses instead of model JSON.
+- `/v1/chat/completions` did not pass because `/v1/models` was not healthy.
+- RunPod GraphQL rejected the attempted `podLogs` query, so container-side logs were not available through that query.
+
+Root-cause classification:
+
+| Potential issue | Finding |
+| --- | --- |
+| Container never started | not the primary issue; ports appeared intermittently |
+| Image failed to pull | not proven; pod reached runtime ports |
+| Model download failed | possible, but logs were not available through attempted GraphQL query |
+| vLLM command failed | possible, because OpenAI routes never became healthy |
+| Port/proxy mismatch | partially fixed; endpoint formatter now prefers configured app ports |
+| Endpoint not ready | not enough; repeated probes continued to fail |
+| Wrong RunPod GraphQL fields | fixed by removing invalid `machine.gpuCount` query |
+| Missing HF token inside pod | possible for real TinyLlama/vLLM path; mock path does not need HF |
+| vLLM image entrypoint/args mismatch | possible and remains the real small-test blocker |
+
+## Phase 2 proxy/platform validation image
+
+Because `vllm/vllm-openai:latest` did not expose a healthy OpenAI-compatible route, the small-test template now supports a deterministic mock OpenAI-compatible image for **proxy/platform validation only**. This does not count as real AI inference.
 
 | Item | Result |
 | --- | --- |
-| Template | `small-test` |
-| Pod creation | passed |
-| First pod ID | `cdffl5uf8amy2e` |
-| Second pod ID after template/endpoint fixes | `72w2txc1v8li7g` |
-| GPU actually assigned | H100 SXM |
-| Session persistence | passed: sessions were created with one-hour auto-stop timestamps |
-| Cost event path | passed: creation and stop/delete actions executed through backend lifecycle code |
-| Audit log path | passed: lifecycle actions executed through audited backend routes |
-| Manual stop | passed for both pods |
-| Deletion cleanup | passed: `GET /runpod/pods` returned an empty list after cleanup |
+| Image | `zerob13/mock-openai-api:latest` |
+| Container port | `3000/http` |
+| RunPod pod ID | `x0h6dlp9fml6sr` |
+| Stable endpoint tested | `https://x0h6dlp9fml6sr-3000.proxy.runpod.net` |
+| `/` | 200 with mock server metadata |
+| `/health` | 200 |
+| `/v1/models` | 200 with `mock-gpt-thinking` |
+| `/v1/chat/completions` | 200 with non-empty assistant text |
+| Streaming | 200 with SSE chunks |
+| `POST /model/validate` | passed |
+| API `/chat/completions` | passed when API was pointed at the mock endpoint for QA routing |
+| Stop/delete cleanup | passed; `GET /runpod/pods` returned `[]` after cleanup |
 
-### Runtime endpoint result
+Script validation result:
 
-| Check | Result |
-| --- | --- |
-| Stable RunPod proxy format | fixed in code to use `https://<podId>-<internalPort>.proxy.runpod.net` |
-| `/v1/models` direct endpoint | failed: RunPod proxy returned waiting/404 responses rather than OpenAI-compatible model JSON |
-| `/v1/chat/completions` direct endpoint | not passed because `/v1/models` never became healthy |
-| Streaming direct endpoint | not passed because `/v1/models` never became healthy |
-| `infra/scripts/validate-private-model-runtime.sh` | failed against the live endpoint because model/chat/stream checks could not reach a healthy OpenAI-compatible service |
-| API `POST /model/validate` | not passed because the live endpoint was not healthy |
-| API `/chat/completions` | not run against the failed live endpoint |
-| Dashboard chat | not run against the failed live endpoint |
-| Emergency stop | not required after manual stops and delete cleanup; backend route remains implemented but this live pass did not need to stop active leftover pods |
-
-### Root cause found and fixes made
-
-1. The original endpoint URL normalizer incorrectly used the runtime IP/public port proxy form. RunPod documentation defines the stable HTTP proxy URL as `https://<pod-id>-<internal-port>.proxy.runpod.net`, so the code was fixed and covered by a unit test.
-2. The initial small-test template used a placeholder private image. The template now uses a public vLLM image by default, an explicit TinyLlama model, H100-compatible GPU selection, one-hour runtime, and port 8000.
-3. The remaining live blocker is that the public vLLM pod did not expose a healthy OpenAI-compatible `/v1/models` route before validation timeout. RunPod GraphQL did not expose pod logs through the attempted `podLogs` query, so the exact container-side failure could not be retrieved programmatically in this pass.
-
-## Qwen Coder validation
-
-Status: **not run**.
-
-Reason: small-test live validation did not pass. Per the required validation order, Qwen must not be started until the cheaper small-test path is proven end-to-end.
-
-Required next command after small-test passes:
-
-```bash
-infra/scripts/validate-private-model-runtime.sh --model qwen --endpoint "$QWEN_ENDPOINT_URL" --expected-model "$QWEN_SERVED_MODEL"
+```json
+{
+  "model": "small-test",
+  "checks": {
+    "models": { "ok": true, "status": 200 },
+    "chat": { "ok": true, "status": 200, "text": "Hello from the mock OpenAI chat completion." },
+    "streaming": { "ok": true, "status": 200 }
+  },
+  "ok": true
+}
 ```
 
-## Llama 405B validation
+## Phase 3 Supabase persistence verification
 
-Status: **not run**.
+`GET /diagnostics/persistence/latest-runpod-validation` verified that the latest RunPod validation wrote real Supabase rows.
 
-Reason: small-test and Qwen live validations have not passed. Llama 405B must not be started until cheaper validation paths pass, GPU availability is confirmed, approval exists, budget guardrails are confirmed, and emergency stop is ready.
-
-Required next command only after approval and Qwen pass:
-
-```bash
-infra/scripts/validate-private-model-runtime.sh --model llama405b --endpoint "$LLAMA_ENDPOINT_URL" --expected-model "$LLAMA_SERVED_MODEL"
-```
-
-## Validation automation status
-
-- `infra/scripts/validate-private-model-runtime.sh` validates endpoint reachability, `/v1/models`, `/v1/chat/completions`, optional streaming, non-empty response text, expected model name, HTTP status, and latency.
-- `POST /model/validate` runs OpenAI-compatible validation from the API and writes an audit event without exposing API keys in the dashboard.
-- Unit coverage verifies the validation service against a mocked OpenAI-compatible endpoint.
-
-## Current acceptance status
-
-| Requirement | Status |
+| Table | Verified result |
 | --- | --- |
-| Small test pod starts | live validated: passed |
-| `/v1/models` real response | live validated: failed |
-| `/v1/chat/completions` real answer | not passed |
-| API `/model/validate` | not passed against live endpoint |
-| API `/chat/completions` real answer | not run because live endpoint failed health |
-| Dashboard chat real answer | not run because live endpoint failed health |
-| Auto-stop scheduled | live validated: passed for created sessions |
-| Manual stop works | live validated: passed |
-| Emergency stop works | implemented; not required during this cleanup pass |
-| Cost event stored | lifecycle path executed; should be verified by Supabase row query in the next pass |
-| Audit log stored | lifecycle path executed; should be verified by Supabase row query in the next pass |
+| `ai_sessions` | latest session `session_cc53c3fd-bbcb-4a1b-b023-2828026c3e97` |
+| `model_runtimes` | 1 row for the latest session |
+| `cost_events` | 2 rows for the latest session |
+| `audit_logs` | 7 lifecycle audit rows for the latest pod/session |
 
-## Production blocker
+## Remaining production blocker
 
-The platform is **not production-ready** until a small-test pod exposes a healthy OpenAI-compatible endpoint and returns non-empty `/v1/chat/completions` output. Do not start Qwen or Llama 405B until this blocker is resolved.
+The platform is still **not production-ready** for real inference. The mock image proves RunPod proxy + API + Supabase persistence plumbing, but real small-test AI inference remains blocked until a reliable TinyLlama/vLLM image and command are proven. Qwen and Llama must remain blocked until that real small-test inference path passes.

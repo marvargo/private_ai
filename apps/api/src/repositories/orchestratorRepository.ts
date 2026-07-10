@@ -33,6 +33,9 @@ type TaskRow = {
   risk_level?: RiskLevel | null;
   allowed_tools?: string[] | null;
   requires_approval?: boolean | null;
+  locked_at?: string | null;
+  locked_by?: string | null;
+  lock_expires_at?: string | null;
 };
 
 type AuditRow = {
@@ -251,10 +254,18 @@ export const orchestratorRepository = {
     return taskFromRow(data as TaskRow);
   },
 
+
+  async claimNextQueuedTask(workerId: string, lockSeconds = 300) {
+    const { data, error } = await requireSupabase().rpc('claim_next_ai_task', { worker_id: workerId, lock_seconds: lockSeconds });
+    if (error) throw error;
+    if (!data) return undefined;
+    return taskFromRow(data as TaskRow);
+  },
+
   async updateTaskStatus(taskId: string, status: TaskStatus, outputSummary?: string) {
     const { data, error } = await requireSupabase()
       .from('ai_tasks')
-      .update({ status, output_summary: outputSummary, updated_at: new Date().toISOString(), completed_at: status === 'completed' ? new Date().toISOString() : undefined })
+      .update({ status, output_summary: outputSummary, updated_at: new Date().toISOString(), completed_at: status === 'completed' ? new Date().toISOString() : undefined, locked_at: ['completed', 'failed', 'cancelled'].includes(status) ? null : undefined, locked_by: ['completed', 'failed', 'cancelled'].includes(status) ? null : undefined, lock_expires_at: ['completed', 'failed', 'cancelled'].includes(status) ? null : undefined })
       .eq('id', stripPrefix(taskId))
       .select('*')
       .single();

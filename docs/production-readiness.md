@@ -96,3 +96,11 @@ I will continue in this order:
 - Supabase MCP access is configured and has been verified with `execute_sql`.
 - Live Supabase schema has been initialized for the orchestration tables.
 - RunPod and Hugging Face credentials should be rotated before production launch because they were pasted into chat during setup.
+
+## Live validation status (2026-07-10)
+
+- RunPod lifecycle and proxy/platform validation passed with the mock OpenAI-compatible small-test image.
+- Real small-test AI inference is still blocked because the public vLLM/TinyLlama pod did not expose healthy `/v1/models` or `/v1/chat/completions`.
+- Qwen and Llama 405B have not been started and remain blocked until real small-test inference passes.
+- Supabase persistence rows were verified for the latest RunPod validation: ai_sessions, model_runtimes, cost_events, and audit_logs.
+- Last known passing GitHub Actions run: https://github.com/marvargo/private_ai/actions/runs/29111838177.
