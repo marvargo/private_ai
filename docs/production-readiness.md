@@ -1,0 +1,98 @@
+# Production readiness plan
+
+Current status: WyndMe Private AI has a buildable API, dashboard, shared model routing types, Supabase schema, live Supabase MCP access, RunPod/Hugging Face/GitHub integration scaffolds, credential encryption, approval gates, cost controls, and Supabase-backed orchestration for model registry, sessions, tasks, task logs, audit logs, cost events, approvals, and encrypted provider credentials.
+
+The project is **not production-ready yet**. The remaining work is listed below in the order I will execute it.
+
+## P0 — production blockers
+
+1. **Complete persistent backend state**
+   - Persist approvals in Supabase. **Implemented.**
+   - Persist provider credentials in Supabase with encrypted values only. **Implemented.**
+   - Persist runtime health state and RunPod pod lifecycle updates.
+   - Remove or isolate in-memory state from production paths.
+
+2. **Dashboard/API authentication**
+   - Add Supabase Auth login to the dashboard.
+   - Validate Supabase JWTs in the API.
+   - Keep service-role/secret keys backend-only.
+   - Add role-based admin authorization for destructive actions.
+
+3. **RunPod provisioning workflows**
+   - Implement create/start/stop/delete pod flows for:
+     - Qwen Coder development runtime.
+     - Llama 405B reasoning runtime.
+     - Smaller test runtime.
+   - Record pod IDs, endpoint URLs, runtime status, auto-stop deadlines, and cost events in Supabase.
+   - Require approvals for expensive or destructive operations.
+
+4. **AI worker/task execution**
+   - Add a worker process that polls queued tasks from Supabase.
+   - Route tasks by `model_role` / task type to Llama or Qwen.
+   - Write task logs, outputs, errors, and final status to Supabase.
+   - Implement the Llama → Qwen → Llama workflow for app builds.
+
+5. **Model runtime health checks**
+   - Poll OpenAI-compatible `/v1/models` or `/health` endpoints for each runtime.
+   - Persist runtime health and last check times.
+   - Block task execution when required runtime is unhealthy or stopped.
+
+6. **Security hardening**
+   - Add explicit RLS policies or keep all orchestration tables backend-only with no public policies.
+   - Run Supabase security/performance advisors after every schema change.
+   - Add audit trails for all production actions.
+   - Rotate any tokens that were pasted into chat before production use.
+
+## P1 — production quality
+
+1. **Dashboard completion**
+   - Authenticated admin shell.
+   - Private chat with Auto / Llama / Qwen selector.
+   - Task creation screen with Auto / Force Llama / Force Qwen.
+   - Approvals queue.
+   - Credential manager with redacted secrets only.
+   - RunPod session controls with costs, health, and stop buttons.
+
+2. **GitHub implementation**
+   - Branch creation.
+   - File editing workflow.
+   - Test/build execution summaries.
+   - Pull request creation.
+   - Approval before production branches or destructive operations.
+
+3. **Deployment and operations**
+   - CI pipeline for tests, typecheck, build, and migrations.
+   - Deployment manifests for API, dashboard, and worker.
+   - Scheduled auto-stop worker/cron.
+   - Runbooks for model start/stop, incident response, and cost shutdown.
+
+4. **Observability**
+   - Structured logs.
+   - Runtime metrics.
+   - Cost reports by session/model/task.
+   - Error dashboards.
+
+## P2 — scale and extensibility
+
+1. Add model families beyond Llama/Qwen: GLM, DeepSeek, future open-weight reasoning/coding models.
+2. Add model benchmark/evaluation records.
+3. Add branch database environments for risky schema work.
+4. Add multi-user/team permissions beyond initial admin-only mode.
+
+## Current execution plan
+
+I will continue in this order:
+
+1. Persist remaining production state: runtime health and RunPod pod lifecycle updates.
+2. Implement backend auth with Supabase JWT validation.
+3. Add RunPod create/start/stop orchestration records.
+4. Add the worker queue and model-routing execution loop.
+5. Complete dashboard screens for chat, tasks, approvals, credentials, and sessions.
+6. Add CI/deployment/operations hardening.
+7. Perform live Qwen test runtime provisioning first, then Llama 405B 4-hour session after the cheaper path is validated.
+
+## Live access status
+
+- Supabase MCP access is configured and has been verified with `execute_sql`.
+- Live Supabase schema has been initialized for the orchestration tables.
+- RunPod and Hugging Face credentials should be rotated before production launch because they were pasted into chat during setup.

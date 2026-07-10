@@ -1,0 +1,18 @@
+{
+  "name": "wyndme-qwen-coder-vllm",
+  "gpuCount": 4,
+  "gpuType": "NVIDIA H100 80GB HBM3",
+  "volumeGb": 1000,
+  "containerImage": "ghcr.io/wyndme/qwen-coder-vllm:latest",
+  "ports": [{ "containerPort": 8001, "protocol": "http" }],
+  "env": {
+    "MODEL_ID": "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+    "SERVED_MODEL_NAME": "wyndme-qwen-coder",
+    "TENSOR_PARALLEL_SIZE": "4",
+    "MAX_MODEL_LEN": "262144",
+    "GPU_MEMORY_UTILIZATION": "0.90"
+  },
+  "volumeMountPath": "/workspace/models",
+  "startCommand": "/opt/wyndme/start-qwen-vllm.sh",
+  "healthcheck": "/opt/wyndme/healthcheck.sh"
+}
