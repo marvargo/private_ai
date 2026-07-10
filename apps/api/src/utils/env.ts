@@ -22,6 +22,7 @@ export const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().optional(),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_DB_URL: z.string().optional(),
+  SUPABASE_JWKS_URL: z.string().optional(),
   ENCRYPTION_KEY: z.string().optional(),
   DEFAULT_SESSION_HOURS: z.coerce.number().default(4),
   MAX_SESSION_HOURS: z.coerce.number().default(4),
@@ -40,7 +41,8 @@ export const env = {
 
 export function productionReadinessWarnings() {
   const warnings: string[] = [];
-  if (!env.ADMIN_API_KEY) warnings.push('ADMIN_API_KEY is not set; protected routes are open for local development only.');
+  if (env.NODE_ENV === 'production' && !env.NEXT_PUBLIC_SUPABASE_URL) warnings.push('NEXT_PUBLIC_SUPABASE_URL is required in production for Supabase JWT validation.');
+  if (env.NODE_ENV !== 'production' && !env.ADMIN_API_KEY) warnings.push('ADMIN_API_KEY is not set; development fallback auth is disabled; use Supabase JWT auth.');
   if (!env.ENCRYPTION_KEY) warnings.push('ENCRYPTION_KEY is not set; credential vault writes will be blocked.');
   if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) warnings.push('Supabase URL/service role are not configured; persistent repositories are unavailable.');
   if (env.SUPABASE_SERVICE_ROLE_KEY?.startsWith('sb_publishable_')) warnings.push('SUPABASE_SERVICE_ROLE_KEY appears to be a publishable key; backend persistence and auth admin require a service-role secret.');

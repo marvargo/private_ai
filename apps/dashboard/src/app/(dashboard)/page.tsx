@@ -1,7 +1,7 @@
-import { CommandActions } from '../components/CommandActions';
-import { StatusCard } from '../components/StatusCard';
-import { ModelRoleSelector } from '../components/ModelRoleSelector';
-import { getDashboardState, getGpuTargets } from '../lib/api';
+import { CommandActions } from '../../components/CommandActions';
+import { StatusCard } from '../../components/StatusCard';
+import { ModelRoleSelector } from '../../components/ModelRoleSelector';
+import { getDashboardState, getGpuTargets } from '../../lib/api';
 
 const sections = ['Chat', 'Task Queue', 'RunPod Manager', 'Model Runtime', 'GitHub', 'Supabase', 'Knowledge Base', 'Logs & Audit', 'Settings'];
 
