@@ -104,3 +104,7 @@ I will continue in this order:
 - Qwen and Llama 405B have not been started and remain blocked until real small-test inference passes.
 - Supabase persistence rows were verified for the latest RunPod validation: ai_sessions, model_runtimes, cost_events, and audit_logs.
 - Last known passing GitHub Actions run: https://github.com/marvargo/private_ai/actions/runs/29111838177.
+
+## Worker lock migration live status
+
+`supabase/migrations/004_worker_locks_and_claims.sql` exists in the repo, but the live migration application attempt from this environment failed because the Supabase Postgres pooler was unreachable on port 5432. Production worker locking must not be considered live until the migration is applied and verified from an environment with database connectivity.

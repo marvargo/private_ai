@@ -32,3 +32,16 @@ Run the worker continuously or every few minutes through your scheduler so queue
 ## Token rotation
 
 Rotate provider tokens from the provider console, update only backend environment variables, restart API and worker processes, and verify redacted credentials in `/credentials`.
+
+## Real small-test runtime image
+
+The real small-test image is `ghcr.io/marvargo/private-ai-smalltest-real:latest`.
+
+Before live real-small-test validation:
+
+1. Run the GitHub Actions workflow **Docker Small Test Real Runtime**.
+2. Confirm the GHCR image exists and is pullable.
+3. Confirm RunPod can pull the image.
+4. If image visibility blocks RunPod, make the GHCR package public or configure RunPod image pull credentials.
+
+This image exposes `/health`, `/v1/models`, `/v1/chat/completions`, and streaming responses on port `8000`.

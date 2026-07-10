@@ -105,7 +105,27 @@ export function createQwenCoderPodTemplate(): RunPodPodTemplate {
 }
 
 export function createSmallTestPodTemplate(): RunPodPodTemplate {
-  const mode = process.env.RUNPOD_SMALL_TEST_MODE || 'mock-openai';
+  const mode = process.env.RUNPOD_SMALL_TEST_MODE || 'real';
+
+  if (mode === 'mock') {
+    return {
+      name: 'wyndme-small-test-mock',
+      gpuCount: 1,
+      gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
+      volumeGb: 20,
+      containerImage: process.env.RUNPOD_SMALL_TEST_MOCK_IMAGE || 'ghcr.io/marvargo/private-ai-smalltest-mock:latest',
+      ports: [{ containerPort: 3000, protocol: 'http' }],
+      env: {
+        SERVED_MODEL_NAME: 'mock-gpt-thinking',
+      },
+      volumeMountPath: '/workspace',
+      startCommand: '',
+      healthcheck: '/health',
+      estimatedHourlyCost: 0.5,
+      modelRole: 'qa',
+    };
+  }
+
   if (mode === 'vllm') {
     return {
       name: 'wyndme-small-test-vllm',
@@ -129,21 +149,19 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
   }
 
   return {
-    name: 'wyndme-small-test-mock-openai',
+    name: 'wyndme-small-test-real',
     gpuCount: 1,
     gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
-    volumeGb: 20,
-    containerImage: process.env.RUNPOD_SMALL_TEST_IMAGE || 'zerob13/mock-openai-api:latest',
-    ports: [{ containerPort: 3000, protocol: 'http' }],
+    volumeGb: 80,
+    containerImage: process.env.RUNPOD_SMALL_TEST_REAL_IMAGE || 'ghcr.io/marvargo/private-ai-smalltest-real:latest',
+    ports: [{ containerPort: 8000, protocol: 'http' }],
     env: {
-      PORT: '3000',
-      HOST: '0.0.0.0',
-      VERBOSE: 'true',
-      MODEL_ID: 'mock-gpt-thinking',
-      SERVED_MODEL_NAME: 'mock-gpt-thinking',
-      VALIDATION_MODE: 'proxy-platform-validation-only',
+      MODEL_ID: process.env.RUNPOD_SMALL_TEST_MODEL_ID || 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+      SERVED_MODEL_NAME: 'wyndme-small-test-real',
+      HF_HOME: '/workspace/models',
+      TRANSFORMERS_CACHE: '/workspace/models',
     },
-    volumeMountPath: '/workspace/mock-openai',
+    volumeMountPath: '/workspace/models',
     startCommand: '',
     healthcheck: '/health',
     estimatedHourlyCost: 0.5,

@@ -101,3 +101,32 @@ Script validation result:
 ## Remaining production blocker
 
 The platform is still **not production-ready** for real inference. The mock image proves RunPod proxy + API + Supabase persistence plumbing, but real small-test AI inference remains blocked until a reliable TinyLlama/vLLM image and command are proven. Qwen and Llama must remain blocked until that real small-test inference path passes.
+
+## Real small-test image rollout (2026-07-10 follow-up)
+
+A controlled real small-test runtime image has been added under `infra/docker/smalltest-real/` and is built by the **Docker Small Test Real Runtime** workflow.
+
+| Item | Status |
+| --- | --- |
+| Real image name | `ghcr.io/marvargo/private-ai-smalltest-real:latest` |
+| Dockerfile added | implemented |
+| OpenAI-compatible server added | implemented |
+| Build/publish workflow added | implemented |
+| RunPod template default mode | changed to `real` |
+| Mock mode | available only with `RUNPOD_SMALL_TEST_MODE=mock` |
+| vLLM mode | available only with `RUNPOD_SMALL_TEST_MODE=vllm` |
+| Live real image pull | pending until workflow publishes image and RunPod can pull it |
+| Live real small-test inference | pending |
+
+The image must be published before live real-small-test validation. If RunPod cannot pull GHCR, make the package public or configure RunPod image pull credentials.
+
+## Live worker-lock migration attempt
+
+Attempted to apply `supabase/migrations/004_worker_locks_and_claims.sql` with Supabase CLI using the linked project. The CLI authenticated and linked the project, but database migration application could not complete from this environment because outbound Postgres pooler traffic on port 5432 is unreachable. The migration is therefore **not live-applied yet**.
+
+Required verification after applying from an environment with DB connectivity:
+
+- `ai_tasks.locked_at` exists
+- `ai_tasks.locked_by` exists
+- `ai_tasks.lock_expires_at` exists
+- `public.claim_next_ai_task(worker_id text, lock_seconds integer)` exists

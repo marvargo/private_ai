@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createLlama405BPodTemplate,
   createQwenCoderPodTemplate,
@@ -15,6 +15,9 @@ import {
 } from './runpodLifecycle.js';
 
 describe('RunPod lifecycle orchestration', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   const mockPod = { id: 'pod-1', name: 'test', runtimeStatus: 'running', endpointUrl: 'https://pod-1.proxy.runpod.net', gpuType: 'NVIDIA H100 80GB HBM3', gpuCount: 1 };
 
   it('builds production model templates without provider secrets', () => {
@@ -28,6 +31,37 @@ describe('RunPod lifecycle orchestration', () => {
     expect(qwen.env.MODEL_ID).toContain('Qwen');
     expect(test.gpuCount).toBe(1);
     expect(JSON.stringify([llama, qwen, test])).not.toContain('RUNPOD_API_KEY');
+  });
+
+
+  it('defaults small-test mode to the real GHCR image on port 8000', () => {
+    const template = createSmallTestPodTemplate();
+    expect(template.name).toBe('wyndme-small-test-real');
+    expect(template.containerImage).toBe('ghcr.io/marvargo/private-ai-smalltest-real:latest');
+    expect(template.ports).toEqual([{ containerPort: 8000, protocol: 'http' }]);
+    expect(template.env.SERVED_MODEL_NAME).toBe('wyndme-small-test-real');
+  });
+
+  it('uses mock small-test mode on port 3000 when requested', () => {
+    vi.stubEnv('RUNPOD_SMALL_TEST_MODE', 'mock');
+    const template = createSmallTestPodTemplate();
+    expect(template.name).toBe('wyndme-small-test-mock');
+    expect(template.ports).toEqual([{ containerPort: 3000, protocol: 'http' }]);
+  });
+
+  it('uses public vLLM image for vllm small-test mode', () => {
+    vi.stubEnv('RUNPOD_SMALL_TEST_MODE', 'vllm');
+    const template = createSmallTestPodTemplate();
+    expect(template.containerImage).toBe('vllm/vllm-openai:latest');
+    expect(template.ports).toEqual([{ containerPort: 8000, protocol: 'http' }]);
+    expect(template.startCommand).toContain('TinyLlama/TinyLlama-1.1B-Chat-v1.0');
+  });
+
+  it('uses explicit real mode with GHCR image and port 8000', () => {
+    vi.stubEnv('RUNPOD_SMALL_TEST_MODE', 'real');
+    const template = createSmallTestPodTemplate();
+    expect(template.containerImage).toBe('ghcr.io/marvargo/private-ai-smalltest-real:latest');
+    expect(template.ports[0].containerPort).toBe(8000);
   });
 
   it('lists, reads status, and reads logs with mocked provider calls', async () => {

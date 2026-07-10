@@ -1,0 +1,33 @@
+name: Docker Small Test Real Runtime
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "infra/docker/smalltest-real/**"
+      - ".github/workflows/docker-smalltest-real.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/docker/smalltest-real
+          push: true
+          tags: ghcr.io/marvargo/private-ai-smalltest-real:latest
