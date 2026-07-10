@@ -3,6 +3,7 @@ import { privateChatCompletion } from './privateChat.js';
 import { listTasks, updateTaskStatus, writeAudit, writeTaskLog } from './orchestrator.js';
 import { assertModelRuntimeHealthy } from './modelRuntimeHealth.js';
 import { selectModelForTask } from './modelRegistry.js';
+import { classifyTaskAction, evaluatePermission, permissionFromTools } from './permissionEngine.js';
 
 export interface TaskExecutorOptions {
   fetch?: typeof fetch;
@@ -49,6 +50,12 @@ export async function runTask(taskId: string, options: TaskExecutorOptions = {})
       await updateTaskStatus(task.id, 'failed', permission.reason);
       await writeTaskLog(task.id, 'error', permission.reason ?? 'Permission denied');
       return { ok: false, reason: permission.reason };
+    }
+    const decision = await evaluatePermission({ permissionLevel: permissionFromTools(task.allowedTools), classification: classifyTaskAction(task.taskType), action: `task.${task.taskType}`, riskLevel: task.riskLevel });
+    if (!decision.allowed) {
+      await updateTaskStatus(task.id, decision.requiresApproval ? 'waiting_approval' : 'failed', decision.reason);
+      await writeTaskLog(task.id, decision.requiresApproval ? 'warn' : 'error', decision.reason ?? 'Permission denied', decision.approval ? { approvalId: decision.approval.id } : undefined);
+      return { ok: false, status: decision.requiresApproval ? 'waiting_approval' : 'failed', reason: decision.reason, approval: decision.approval };
     }
     const modelRole = resolveTaskModelRole(task.taskType);
     assertModelRuntimeHealthy(task.taskType, modelRole);
