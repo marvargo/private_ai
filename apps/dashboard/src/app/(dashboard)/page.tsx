@@ -43,7 +43,7 @@ export default async function Home() {
         <div className="card"><h2 className="text-xl font-bold">Cost events</h2><div className="mt-3 space-y-2">{state.costEvents.length ? state.costEvents.slice(0, 5).map((event) => <p key={event.id} className="text-sm text-slate-300">{event.eventType} — ${event.estimatedHourlyCost ?? 0}/hr</p>) : <p className="text-sm text-slate-400">No cost events yet.</p>}</div></div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{sections.map((section) => <div key={section} className="card"><h3 className="font-bold">{section}</h3><p className="mt-2 text-sm text-slate-400">API-backed module area ready for the next production iteration.</p></div>)}</section>
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{sections.map((section) => <a key={section} className="card block hover:border-cyan-400" href={`/${section.toLowerCase().replaceAll(' ', '-').replace('task-queue', 'tasks').replace('runpod-manager', 'runpod').replace('model-runtime', 'models').replace('logs-&-audit', 'audit').replace('knowledge-base', 'knowledge').replace('command-center', '')}`}><h3 className="font-bold">{section}</h3><p className="mt-2 text-sm text-slate-400">Open live API-backed controls, logs, and operational state for this module.</p></a>)}</section>
     </div>
   </main>;
 }
