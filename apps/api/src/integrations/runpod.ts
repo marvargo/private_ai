@@ -37,16 +37,20 @@ export async function runpodGraphql<T>(query: string, variables: Record<string, 
     headers: { 'content-type': 'application/json', 'user-agent': 'wyndme-private-ai-api' },
     body: JSON.stringify({ query, variables }),
   });
-  if (!res.ok) throw new Error(`RunPod HTTP ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`RunPod HTTP ${res.status}: ${text.slice(0, 500)}`);
+  }
   const json = await res.json() as { data?: T; errors?: Array<{ message: string }> };
   if (json.errors?.length) throw new Error(json.errors.map((error) => error.message).join('; '));
   return json.data as T;
 }
 
-function endpointFromPorts(pod: any) {
+export function endpointFromPorts(pod: any) {
   const ports = pod?.runtime?.ports ?? [];
-  const http = ports.find((port: any) => port.type === 'http' || port.protocol === 'http' || port.privatePort === 8000 || port.privatePort === 8001);
+  const http = ports.find((port: any) => port.type === 'http' || port.protocol === 'http' || port.privatePort === 8000 || port.privatePort === 8001 || port.privatePort === 8002);
   if (!http) return undefined;
+  if (pod?.id && http.privatePort) return `https://${pod.id}-${http.privatePort}.proxy.runpod.net`;
   if (http.ip && http.publicPort) return `https://${http.ip}-${http.publicPort}.proxy.runpod.net`;
   if (http.ip && http.privatePort) return `http://${http.ip}:${http.privatePort}`;
   return undefined;
@@ -76,7 +80,7 @@ export async function listRunPodGpuTypes() {
 }
 
 export async function listRunPodPods() {
-  const data = await runpodGraphql<{ myself: { pods: unknown[] } }>('{ myself { pods { id name runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } desiredStatus machine { gpuDisplayName gpuCount } } } }');
+  const data = await runpodGraphql<{ myself: { pods: unknown[] } }>('{ myself { pods { id name runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } desiredStatus machine { gpuDisplayName } } } }');
   return data.myself.pods.map(normalizePod);
 }
 
@@ -84,15 +88,18 @@ export async function createRunPodPod(template: RunPodPodTemplate) {
   const data = await runpodGraphql<{ podFindAndDeployOnDemand: unknown }>(
     `mutation CreatePod($input: PodFindAndDeployOnDemandInput!) {
       podFindAndDeployOnDemand(input: $input) {
-        id name desiredStatus runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } machine { gpuDisplayName gpuCount }
+        id name desiredStatus runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } machine { gpuDisplayName }
       }
     }`,
     {
       input: {
         name: template.name,
         imageName: template.containerImage,
+        cloudType: 'ALL',
         gpuCount: template.gpuCount,
         gpuTypeId: template.gpuType,
+        minVcpuCount: 4,
+        minMemoryInGb: 16,
         containerDiskInGb: 50,
         volumeInGb: template.volumeGb,
         volumeMountPath: template.volumeMountPath,
@@ -122,12 +129,12 @@ export async function getRunPodPodLogs(podId: string) {
 }
 
 export async function startRunPodPod(podId: string) {
-  const data = await runpodGraphql<{ podResume: unknown }>('mutation($podId:String!){ podResume(input:{podId:$podId}) { id name desiredStatus runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } machine { gpuDisplayName gpuCount } } }', { podId });
+  const data = await runpodGraphql<{ podResume: unknown }>('mutation($podId:String!){ podResume(input:{podId:$podId}) { id name desiredStatus runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } machine { gpuDisplayName } } }', { podId });
   return normalizePod(data.podResume);
 }
 
 export async function stopRunPodPod(podId: string) {
-  const data = await runpodGraphql<{ podStop: unknown }>('mutation($podId:String!){ podStop(input:{podId:$podId}) { id name desiredStatus runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } machine { gpuDisplayName gpuCount } } }', { podId });
+  const data = await runpodGraphql<{ podStop: unknown }>('mutation($podId:String!){ podStop(input:{podId:$podId}) { id name desiredStatus runtime { uptimeInSeconds ports { ip isIpPublic privatePort publicPort type } } machine { gpuDisplayName } } }', { podId });
   return normalizePod(data.podStop);
 }
 

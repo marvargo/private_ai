@@ -108,10 +108,10 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
   return {
     name: 'wyndme-small-test-vllm',
     gpuCount: 1,
-    gpuType: 'NVIDIA RTX A5000',
-    volumeGb: 200,
-    containerImage: 'ghcr.io/wyndme/small-test-vllm:latest',
-    ports: [{ containerPort: 8002, protocol: 'http' }],
+    gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
+    volumeGb: 80,
+    containerImage: process.env.RUNPOD_SMALL_TEST_IMAGE || 'vllm/vllm-openai:latest',
+    ports: [{ containerPort: 8000, protocol: 'http' }],
     env: {
       MODEL_ID: 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
       SERVED_MODEL_NAME: 'wyndme-small-test',
@@ -119,8 +119,8 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
       MAX_MODEL_LEN: '4096',
     },
     volumeMountPath: '/workspace/models',
-    startCommand: '/opt/wyndme/start-model-server.sh',
-    healthcheck: '/opt/wyndme/healthcheck.sh',
+    startCommand: '--model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --served-model-name wyndme-small-test --host 0.0.0.0 --port 8000 --max-model-len 4096',
+    healthcheck: '/v1/models',
     estimatedHourlyCost: 0.5,
     modelRole: 'qa',
   };
