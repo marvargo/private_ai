@@ -1,12 +1,12 @@
 import { ModelRole } from '@wyndme/shared';
 import { env } from '../utils/env.js';
-import { selectModelForTask } from './modelRegistry.js';
+import { assertModelRuntimeHealthy } from './modelRuntimeHealth.js';
 
 export async function chatWithPrivateModel(
   messages: Array<{role:string; content:string}>,
   options: {temperature?:number; max_tokens?:number; modelRole?: ModelRole; taskType?: string} = {},
 ) {
-  const selection = selectModelForTask(options.taskType ?? 'business_strategy', options.modelRole ?? 'auto');
+  const selection = assertModelRuntimeHealthy(options.taskType ?? 'business_strategy', options.modelRole ?? 'auto');
   const baseUrl = selection.model.endpointUrl || (selection.model.modelFamily === 'qwen' ? process.env.QWEN_SERVER_URL : env.LLAMA_SERVER_URL);
   if (!baseUrl) throw new Error(`No private endpoint configured for ${selection.model.modelFamily} model ${selection.model.id}`);
   const apiKey = selection.model.modelFamily === 'qwen' ? process.env.QWEN_SERVER_API_KEY : env.LLAMA_SERVER_API_KEY;

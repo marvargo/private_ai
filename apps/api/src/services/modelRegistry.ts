@@ -99,3 +99,12 @@ export function getModelById(id: string) {
 export function modelRoleOwner(role: ConcreteModelRole) {
   return qwenRoles.has(role) ? 'qwen_coder' : 'llama_reasoning';
 }
+
+
+export function updateModelRuntimeStatus(id: string, status: ModelRegistryEntry['status'], endpointUrl?: string) {
+  const existing = registry.get(id);
+  if (!existing) throw new Error(`Model ${id} not found`);
+  const updated = { ...existing, status, endpointUrl: endpointUrl ?? existing.endpointUrl };
+  registry.set(id, updated);
+  return updated;
+}

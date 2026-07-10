@@ -17,6 +17,7 @@ import { listApprovals, requestApproval, resolveApproval } from '../services/app
 import { checkAutoStop, emergencyStopAll, manualStopSession } from '../services/sessionSafety.js';
 import { createLlama405BPodTemplate, createQwenCoderPodTemplate, createRunPodPod, createSmallTestPodTemplate, deleteRunPodPod, emergencyStopAllActiveSessions, getRunPodPodLogs, getRunPodPodStatus, listRunPodPods, scheduleAutoStop, startRunPodPod, stopRunPodPod, testRunPodConnection } from '../services/runpodLifecycle.js';
 import { getSettings, patchSettings } from '../services/settings.js';
+import { getModelRuntimeLogs, getModelRuntimeStatus, pollModelRuntimes, restartModelRuntime, startModelRuntime, stopModelRuntime } from '../services/modelRuntimeHealth.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
 
@@ -83,6 +84,25 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/supabase/diagnostics', async () => diagnoseSupabase());
   app.get('/models/access-check', async () => checkRequiredModelAccess([...new Set((await listPersistentModelRegistry()).filter((model) => model.enabled).map((model) => model.modelName))]));
   app.post('/models/route-preview', async (req) => { const body = z.object({ taskType: z.string(), modelRole: modelRoleSchema.default('auto') }).parse(req.body); return selectModelForTask(body.taskType, body.modelRole); });
+
+  app.get('/model/status', async () => getModelRuntimeStatus());
+  app.post('/model/status/check', async () => pollModelRuntimes());
+  app.post('/model/start', async (req) => {
+    const body = z.object({ modelRole: z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops']), podId: z.string().optional() }).parse(req.body ?? {});
+    return startModelRuntime(body.modelRole, body.podId);
+  });
+  app.post('/model/stop', async (req) => {
+    const body = z.object({ modelRole: z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops']), podId: z.string().optional() }).parse(req.body ?? {});
+    return stopModelRuntime(body.modelRole, body.podId);
+  });
+  app.post('/model/restart', async (req) => {
+    const body = z.object({ modelRole: z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops']), podId: z.string().optional() }).parse(req.body ?? {});
+    return restartModelRuntime(body.modelRole, body.podId);
+  });
+  app.get('/model/logs', async (req) => {
+    const query = z.object({ modelRole: z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops']), podId: z.string().optional() }).parse(req.query);
+    return getModelRuntimeLogs(query.modelRole, query.podId);
+  });
 
 
 
