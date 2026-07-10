@@ -22,6 +22,7 @@ export const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().optional(),
   SUPABASE_URL: z.string().optional(),
   SUPABASE_DB_URL: z.string().optional(),
+  SUPABASE_ACCESS_TOKEN: z.string().optional(),
   SUPABASE_JWKS_URL: z.string().optional(),
   ENCRYPTION_KEY: z.string().optional(),
   DEFAULT_SESSION_HOURS: z.coerce.number().default(4),

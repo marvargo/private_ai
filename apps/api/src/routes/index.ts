@@ -22,6 +22,7 @@ import { addConversationMessage, createConversation, getConversation, listConver
 import { privateChatCompletion, privateChatCompletionStream } from '../services/privateChat.js';
 import { cancelTask, retryTask, runTask } from '../services/taskExecutor.js';
 import { connectGitHubRepo, createGitHubBranch, createOrUpdateGitHubFile, listGitHubPullRequests, listGitHubRepos, openGitHubPullRequest, readGitHubActionsStatus, readGitHubFile, readGitHubTree, testGitHubToken } from '../services/githubService.js';
+import { applyMigrationDraft, connectSupabaseProject, generateMigrationDraft, listSupabaseProjects, readSupabaseProjectSchema, testSupabaseManagementConnection } from '../services/supabaseProjectService.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
 
@@ -86,6 +87,12 @@ export async function registerRoutes(app: FastifyInstance) {
   app.patch('/settings', async (req) => { const updated = patchSettings(settingsPatchSchema.parse(req.body ?? {})); await writeAudit({ actorType: 'admin', action: 'settings.updated', targetType: 'app_settings', status: 'ok' }); return updated; });
   app.get('/models', async () => listPersistentModelRegistry());
   app.get('/supabase/diagnostics', async () => diagnoseSupabase());
+  app.post('/supabase/test', async () => testSupabaseManagementConnection());
+  app.get('/supabase/projects', async () => listSupabaseProjects());
+  app.post('/supabase/projects/connect', async (req) => connectSupabaseProject(z.object({ projectRef: z.string(), projectName: z.string().optional(), organizationId: z.string().optional(), region: z.string().optional(), status: z.string().optional(), providerCredentialId: z.string().optional() }).parse(req.body)));
+  app.get('/supabase/projects/:projectId/schema', async (req) => readSupabaseProjectSchema((req.params as { projectId: string }).projectId));
+  app.post('/supabase/projects/:projectId/migration-draft', async (req) => generateMigrationDraft((req.params as { projectId: string }).projectId, z.object({ name: z.string(), description: z.string() }).parse(req.body)));
+  app.post('/supabase/projects/:projectId/apply-migration', async (req) => { const body = z.object({ draftId: z.string(), approved: z.boolean().default(false) }).parse(req.body); return applyMigrationDraft((req.params as { projectId: string }).projectId, body.draftId, body.approved); });
   app.get('/models/access-check', async () => checkRequiredModelAccess([...new Set((await listPersistentModelRegistry()).filter((model) => model.enabled).map((model) => model.modelName))]));
   app.post('/models/route-preview', async (req) => { const body = z.object({ taskType: z.string(), modelRole: modelRoleSchema.default('auto') }).parse(req.body); return selectModelForTask(body.taskType, body.modelRole); });
 
