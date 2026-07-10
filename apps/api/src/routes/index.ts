@@ -20,6 +20,7 @@ import { getSettings, patchSettings } from '../services/settings.js';
 import { getModelRuntimeLogs, getModelRuntimeStatus, pollModelRuntimes, restartModelRuntime, startModelRuntime, stopModelRuntime } from '../services/modelRuntimeHealth.js';
 import { addConversationMessage, createConversation, getConversation, listConversationMessages, listConversations } from '../services/conversations.js';
 import { privateChatCompletion, privateChatCompletionStream } from '../services/privateChat.js';
+import { cancelTask, retryTask, runTask } from '../services/taskExecutor.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
 
@@ -205,6 +206,9 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/tasks', async () => listTasks());
   app.post('/tasks', async (req) => createTask(taskSchema.parse(req.body)));
   app.get('/tasks/:taskId/logs', async (req) => listTaskLogs((req.params as { taskId: string }).taskId));
+  app.post('/tasks/:taskId/run', async (req) => runTask((req.params as { taskId: string }).taskId));
+  app.post('/tasks/:taskId/retry', async (req) => retryTask((req.params as { taskId: string }).taskId));
+  app.post('/tasks/:taskId/cancel', async (req) => cancelTask((req.params as { taskId: string }).taskId));
   app.post('/tasks/:taskId/status', async (req) => { const body = z.object({ status: z.enum(['queued', 'running', 'waiting_approval', 'completed', 'failed', 'cancelled']), outputSummary: z.string().optional() }).parse(req.body); return updateTaskStatus((req.params as { taskId: string }).taskId, body.status, body.outputSummary); });
 
   app.get('/audit-logs', async () => listAuditLogs());
