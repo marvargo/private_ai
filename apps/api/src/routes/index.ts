@@ -16,8 +16,44 @@ import { createCredential, deleteCredential, listCredentials, updateCredentialSt
 import { productionReadinessWarnings } from '../utils/env.js';
 import { listApprovals, requestApproval, resolveApproval } from '../services/approvals.js';
 import { checkAutoStop, emergencyStopAll, manualStopSession } from '../services/sessionSafety.js';
+import { getSettings, patchSettings } from '../services/settings.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
+
+
+const settingsPatchSchema = z.object({
+  privacy: z.object({
+    externalModelProvidersAllowed: z.boolean().optional(),
+  }).optional(),
+  runpod: z.object({
+    defaultRegion: z.string().min(1).optional(),
+    defaultGpuType: z.string().min(1).optional(),
+    defaultGpuCount: z.number().int().min(1).max(16).optional(),
+    defaultVolumeGb: z.number().int().min(100).optional(),
+    defaultSessionHours: z.number().min(0.25).max(env.MAX_SESSION_HOURS).optional(),
+    maxSessionHours: z.number().min(0.25).max(env.MAX_SESSION_HOURS).optional(),
+    autoStopEnabled: z.boolean().optional(),
+  }).optional(),
+  budget: z.object({
+    maxDailyGpuBudgetUsd: z.number().min(0).optional(),
+  }).optional(),
+  approvals: z.object({
+    deletePodRequired: z.boolean().optional(),
+    productionActionRequired: z.boolean().optional(),
+    destructiveActionRequired: z.boolean().optional(),
+    externalSharingRequired: z.boolean().optional(),
+  }).optional(),
+});
+
+const credentialProviderSchema = z.enum(['runpod', 'github', 'supabase', 'huggingface']);
+const credentialWriteSchema = z.object({ credentialLabel: z.string().min(2).default('default'), value: z.string().min(8) });
+
+async function testProviderCredential(providerName: z.infer<typeof credentialProviderSchema>) {
+  if (providerName === 'runpod') return testRunPodConnection();
+  if (providerName === 'github') return testGitHubToken();
+  if (providerName === 'supabase') return diagnoseSupabase();
+  return checkRequiredModelAccess([env.MODEL_ID]);
+}
 
 const taskSchema = z.object({
   title: z.string().min(3),
@@ -41,6 +77,8 @@ export async function registerRoutes(app: FastifyInstance) {
     productionReadinessWarnings: productionReadinessWarnings(),
   }));
   app.get('/state', async () => snapshot());
+  app.get('/settings', async () => getSettings());
+  app.patch('/settings', async (req) => { const updated = patchSettings(settingsPatchSchema.parse(req.body ?? {})); await writeAudit({ actorType: 'admin', action: 'settings.updated', targetType: 'app_settings', status: 'ok' }); return updated; });
   app.get('/models', async () => listPersistentModelRegistry());
   app.get('/supabase/diagnostics', async () => diagnoseSupabase());
   app.get('/models/access-check', async () => checkRequiredModelAccess([...new Set((await listPersistentModelRegistry()).filter((model) => model.enabled).map((model) => model.modelName))]));
@@ -53,6 +91,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/approvals/:approvalId/resolve', async (req) => { const body = z.object({ status: z.enum(['approved', 'rejected']), reason: z.string().optional() }).parse(req.body); return resolveApproval((req.params as { approvalId: string }).approvalId, body.status, body.reason); });
   app.get('/cost-events', async () => listCostEvents());
 
+  app.get('/credentials/status', async () => listCredentials());
   app.get('/credentials', async (req) => {
     const query = z.object({ providerName: z.enum(['runpod', 'github', 'supabase', 'huggingface', 'llama_runtime', 'qwen_runtime']).optional() }).parse(req.query);
     return listCredentials(query.providerName);
@@ -62,6 +101,8 @@ export async function registerRoutes(app: FastifyInstance) {
     credentialLabel: z.string().min(2),
     value: z.string().min(8),
   }).parse(req.body)));
+  app.post('/credentials/:providerName', async (req) => { const providerName = credentialProviderSchema.parse((req.params as { providerName: string }).providerName); return createCredential({ providerName, ...credentialWriteSchema.parse(req.body) }); });
+  app.post('/credentials/test/:providerName', async (req) => { const providerName = credentialProviderSchema.parse((req.params as { providerName: string }).providerName); const result = await testProviderCredential(providerName); await writeAudit({ actorType: 'admin', action: `credential.${providerName}.test`, targetType: 'provider_credential', targetId: providerName, status: 'ok' }); return result; });
   app.post('/credentials/:credentialId/status', async (req) => updateCredentialStatus((req.params as { credentialId: string }).credentialId, z.object({ status: z.enum(['untested', 'valid', 'invalid', 'disabled']) }).parse(req.body).status));
   app.delete('/credentials/:credentialId', async (req) => deleteCredential((req.params as { credentialId: string }).credentialId, z.object({ approved: z.boolean() }).parse(req.body).approved));
 
@@ -94,6 +135,7 @@ export async function registerRoutes(app: FastifyInstance) {
     return startRunPodPod((req.params as { podId: string }).podId);
   });
   app.post('/runpod/pods/:podId/stop', async (req) => stopRunPodPod((req.params as { podId: string }).podId));
+  app.post('/runpod/emergency-stop', async () => emergencyStopAll());
 
   app.get('/sessions', async () => listSessions());
   app.post('/sessions', async (req) => createSession(z.object({ sessionName: z.string().min(3), gpuType: z.string(), gpuCount: z.number().min(1), modelRole: z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops']).optional(), modelId: z.string().optional(), estimatedHourlyCost: z.number().optional(), maxHours: z.number().max(env.MAX_SESSION_HOURS).default(env.MAX_SESSION_HOURS), podId: z.string().optional(), endpointUrl: z.string().optional() }).parse(req.body)));
