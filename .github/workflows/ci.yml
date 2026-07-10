@@ -32,7 +32,7 @@ jobs:
 
       - name: Secret scan
         run: |
-          ! git grep -nE 'github_pat_|ghp_|hf_[A-Za-z0-9_]{20,}|sb_secret_|sk-[A-Za-z0-9_-]{20,}' -- ':!.github/workflows/ci.yml'
+          ! git grep -nE 'rpa_[A-Za-z0-9]{30,}|hf_[A-Za-z0-9]{30,}|sb_secret_[A-Za-z0-9]{20,}|sbp_[A-Fa-f0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|ghp_[A-Za-z0-9]{30,}|sk-[A-Za-z0-9_-]{30,}' -- ':!.github/workflows/ci.yml'
 
       - name: Migration check
         run: test -d supabase/migrations && find supabase/migrations -type f -name '*.sql' -print -quit
