@@ -14,3 +14,8 @@ Dashboard can deploy to Vercel or any Next.js host. API can deploy to a private 
 GitHub Actions CI is defined in `.github/workflows/ci.yml` and runs install, lint, typecheck, tests, build, a lightweight secret scan, and a migration presence check on pushes and pull requests targeting `main`.
 
 See `docs/deployment-runbook.md` for API, dashboard, worker, Supabase, RunPod, scheduled auto-stop, incident shutdown, and token rotation procedures.
+
+
+## Final handoff
+
+The final deployment and operations checklist is maintained in `docs/FINAL_BUILD_REPORT.md`.

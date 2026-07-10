@@ -38,3 +38,8 @@ The API now reports production-readiness warnings from `GET /status`, including 
 ## Supabase manual setup
 
 If you only have Supabase URL, anon/publishable key, and service secret key, run `supabase/manual_setup.sql` in the Supabase Dashboard SQL Editor to create the required tables. Then use `GET /supabase/diagnostics` to confirm readiness.
+
+
+## Final production build
+
+See `docs/FINAL_BUILD_REPORT.md` for the complete operator handoff, setup commands, migration instructions, provider connection steps, hardware requirements, known limitations, and next recommended validation steps.
