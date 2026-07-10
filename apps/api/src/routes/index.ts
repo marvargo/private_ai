@@ -23,6 +23,7 @@ import { privateChatCompletion, privateChatCompletionStream } from '../services/
 import { cancelTask, retryTask, runTask } from '../services/taskExecutor.js';
 import { connectGitHubRepo, createGitHubBranch, createOrUpdateGitHubFile, listGitHubPullRequests, listGitHubRepos, openGitHubPullRequest, readGitHubActionsStatus, readGitHubFile, readGitHubTree, testGitHubToken } from '../services/githubService.js';
 import { applyMigrationDraft, connectSupabaseProject, generateMigrationDraft, listSupabaseProjects, readSupabaseProjectSchema, testSupabaseManagementConnection } from '../services/supabaseProjectService.js';
+import { validatePrivateModelRuntime } from '../services/modelValidation.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
 
@@ -113,6 +114,13 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get('/model/logs', async (req) => {
     const query = z.object({ modelRole: z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops']), podId: z.string().optional() }).parse(req.query);
     return getModelRuntimeLogs(query.modelRole, query.podId);
+  });
+
+  app.post('/model/validate', async (req) => {
+    const body = z.object({ endpointUrl: z.string().url(), apiKey: z.string().optional(), expectedModel: z.string().optional(), prompt: z.string().optional(), stream: z.boolean().default(false) }).parse(req.body ?? {});
+    const validation = await validatePrivateModelRuntime(body);
+    await writeAudit({ actorType: 'admin', action: 'model_runtime.validate', targetType: 'model_runtime', targetId: body.endpointUrl, status: validation.ok ? 'ok' : 'failed', metadata: { models: validation.models, chat: { ok: validation.chat.ok, status: validation.chat.status, latencyMs: validation.chat.latencyMs }, streaming: { ok: validation.streaming.ok, status: validation.streaming.status, supported: validation.streaming.supported } } });
+    return validation;
   });
 
 

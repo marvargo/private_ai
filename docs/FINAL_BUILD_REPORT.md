@@ -108,3 +108,14 @@ The platform is production-oriented but provider-specific response shapes and ex
 ## 21. Next recommended build steps
 
 Run the GitHub Actions workflow, apply migrations in a staging Supabase project, configure real backend-only credentials, perform a small test pod lifecycle, validate chat against a private test model endpoint, then perform a controlled Llama 405B launch with budget and emergency-stop monitoring.
+
+## Live validation status update
+
+- Implemented in code: API, dashboard, RunPod lifecycle, runtime health checks, private chat, task executor, permissions, GitHub/Supabase services, CI, and validation automation.
+- Mock-tested: RunPod lifecycle, private OpenAI-compatible validation, private chat, task execution, GitHub, Supabase, security helpers, and dashboard helper code.
+- Live validated with small model: not run in this environment because `RUNPOD_API_KEY`, `HF_TOKEN`, Supabase service credentials, and endpoint credentials were missing.
+- Live validated with Qwen: not run; blocked until small-test model is live validated.
+- Live validated with Llama 405B: not run; blocked until small-test and Qwen are live validated and approval/budget/GPU checks pass.
+- Still not validated: real RunPod pod creation, real model load, direct real `/v1/models`, direct real `/v1/chat/completions`, real streaming, dashboard chat against a live private endpoint, real task execution against Qwen/Llama, Supabase persistence with live credentials, cost event persistence, and audit persistence.
+
+See `docs/model-runtime-validation.md` for the exact validation attempt, blockers, and commands to run when credentials are available.

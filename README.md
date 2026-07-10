@@ -43,3 +43,8 @@ If you only have Supabase URL, anon/publishable key, and service secret key, run
 ## Final production build
 
 See `docs/FINAL_BUILD_REPORT.md` for the complete operator handoff, setup commands, migration instructions, provider connection steps, hardware requirements, known limitations, and next recommended validation steps.
+
+
+## Private runtime validation status
+
+The platform includes `infra/scripts/validate-private-model-runtime.sh` and `POST /model/validate` for end-to-end private model validation. Live model validation was not run in the current environment because required backend-only provider credentials were absent. See `docs/model-runtime-validation.md` before any production launch.

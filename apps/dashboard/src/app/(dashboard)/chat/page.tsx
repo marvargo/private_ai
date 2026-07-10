@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
+import { createSupabaseBrowserClient } from '../../../lib/supabaseClient';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -20,9 +21,10 @@ export default function ChatPage() {
     setLoading(true);
     setError(null);
     try {
+      const { data } = await createSupabaseBrowserClient().auth.getSession();
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/chat/completions`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...(data.session?.access_token ? { authorization: `Bearer ${data.session.access_token}` } : {}) },
         body: JSON.stringify({ modelRole, taskType: modelRole === 'coding' ? 'app_development' : 'business_strategy', messages: [{ role: 'user', content: input }] }),
       });
       if (!response.ok) throw new Error(`Chat HTTP ${response.status}`);
