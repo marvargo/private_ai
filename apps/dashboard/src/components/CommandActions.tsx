@@ -1,16 +1,9 @@
 'use client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { authenticatedJson } from '../lib/authenticatedApi';
 
 async function post(path: string, body?: unknown) {
-  const res = await fetch(`${API_URL}${path}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}`);
-  return payload;
+  return authenticatedJson<Record<string, unknown>>(path, { method: 'POST', json: body });
 }
 
 export function CommandActions() {

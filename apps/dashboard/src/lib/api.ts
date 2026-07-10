@@ -1,4 +1,6 @@
-const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+'use client';
+
+import { authenticatedJson } from './authenticatedApi';
 
 export interface DashboardState {
   sessions: Array<{ id: string; status: string; gpuType?: string; gpuCount: number; autoStopAt?: string; estimatedHourlyCost?: number }>;
@@ -33,20 +35,19 @@ export interface GpuTarget {
   eightGpuPrice?: { minimumBidPrice: number | null; uninterruptablePrice: number | null };
 }
 
-async function getJson<T>(path: string, fallback: T): Promise<T> {
-  try {
-    const res = await fetch(`${API_URL}${path}`, { cache: 'no-store' });
-    if (!res.ok) return fallback;
-    return await res.json() as T;
-  } catch {
-    return fallback;
-  }
-}
+export const emptyDashboardState: DashboardState = {
+  sessions: [],
+  tasks: [],
+  auditLogs: [],
+  runtime: { modelId: 'meta-llama/Meta-Llama-3.1-405B-Instruct', servingEngine: 'vllm', status: 'loading', contextLength: 32768, tensorParallelSize: 8, quantization: 'fp8' },
+  modelRegistry: [],
+  costEvents: [],
+};
 
 export async function getDashboardState() {
-  return getJson<DashboardState>('/state', { sessions: [], tasks: [], auditLogs: [], runtime: { modelId: 'meta-llama/Meta-Llama-3.1-405B-Instruct', servingEngine: 'vllm', status: 'api_offline', contextLength: 32768, tensorParallelSize: 8, quantization: 'fp8' }, modelRegistry: [], costEvents: [] });
+  return authenticatedJson<DashboardState>('/state');
 }
 
 export async function getGpuTargets() {
-  return getJson<GpuTarget[]>('/runpod/gpu-targets', []);
+  return authenticatedJson<GpuTarget[]>('/runpod/gpu-targets');
 }

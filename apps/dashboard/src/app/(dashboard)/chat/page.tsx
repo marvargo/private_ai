@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { createSupabaseBrowserClient } from '../../../lib/supabaseClient';
+import { authenticatedJson } from '../../../lib/authenticatedApi';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -21,14 +21,10 @@ export default function ChatPage() {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await createSupabaseBrowserClient().auth.getSession();
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/chat/completions`, {
+      const payload = await authenticatedJson<{ choices?: Array<{ message?: { content?: string } }> }>('/chat/completions', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', ...(data.session?.access_token ? { authorization: `Bearer ${data.session.access_token}` } : {}) },
-        body: JSON.stringify({ modelRole, taskType: modelRole === 'coding' ? 'app_development' : 'business_strategy', messages: [{ role: 'user', content: input }] }),
+        json: { modelRole, taskType: modelRole === 'coding' ? 'app_development' : 'business_strategy', messages: [{ role: 'user', content: input }] },
       });
-      if (!response.ok) throw new Error(`Chat HTTP ${response.status}`);
-      const payload = await response.json();
       setMessages([...next, { role: 'assistant', content: payload.choices?.[0]?.message?.content || '(No response content)' }]);
     } catch (sendError) {
       setError(sendError instanceof Error ? sendError.message : String(sendError));

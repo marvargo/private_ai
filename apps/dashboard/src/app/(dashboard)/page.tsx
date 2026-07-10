@@ -1,12 +1,23 @@
+'use client';
+
 import { CommandActions } from '../../components/CommandActions';
 import { StatusCard } from '../../components/StatusCard';
 import { ModelRoleSelector } from '../../components/ModelRoleSelector';
-import { getDashboardState, getGpuTargets } from '../../lib/api';
+import { DashboardState, GpuTarget, emptyDashboardState, getDashboardState, getGpuTargets } from '../../lib/api';
+import { useEffect, useState } from 'react';
 
 const sections = ['Chat', 'Task Queue', 'RunPod Manager', 'Model Runtime', 'GitHub', 'Supabase', 'Knowledge Base', 'Logs & Audit', 'Settings'];
 
-export default async function Home() {
-  const [state, gpuTargets] = await Promise.all([getDashboardState(), getGpuTargets()]);
+export default function Home() {
+  const [state, setState] = useState<DashboardState>(emptyDashboardState);
+  const [gpuTargets, setGpuTargets] = useState<GpuTarget[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([getDashboardState(), getGpuTargets()])
+      .then(([nextState, nextGpuTargets]) => { setState(nextState); setGpuTargets(nextGpuTargets); })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : String(loadError)));
+  }, []);
   const running = state.sessions.filter((session) => session.status === 'running').length;
   const pricedTargets = gpuTargets.filter((gpu) => gpu.currentlyPricedForEightGpu).length;
   const llamaModels = state.modelRegistry.filter((model) => model.modelFamily === 'llama');
@@ -23,6 +34,8 @@ export default async function Home() {
         <div className="card"><p className="text-sm text-slate-400">Privacy mode</p><p className="text-xl font-bold text-emerald-300">Private by default</p></div>
       </header>
 
+      {error ? <div className="rounded-xl border border-red-900 bg-red-950/40 p-4 text-red-200">{error}</div> : null}
+
       <section className="grid gap-4 md:grid-cols-4">
         <StatusCard title="RunPod sessions" value={`${running} running`} detail={`${state.sessions.length} tracked`} />
         <StatusCard title="Models" value={`Llama ${llamaModels.length} / Qwen ${qwenModels.length}`} detail="role-routed private models" />
@@ -37,7 +50,7 @@ export default async function Home() {
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="card"><h2 className="text-xl font-bold">Model registry</h2><div className="mt-3 space-y-2">{state.modelRegistry.length ? state.modelRegistry.map((model) => <div key={model.id} className="rounded-xl bg-slate-950/60 p-3 text-sm"><div className="font-semibold">{model.modelFamily.toUpperCase()} · {model.modelRole}</div><div className="text-slate-400">{model.modelName} · {model.gpuProfile} · {model.enabled ? 'enabled' : 'disabled'}</div></div>) : <p className="text-sm text-slate-400">API not connected yet.</p>}</div></div>
-        <div className="card"><h2 className="text-xl font-bold">RunPod 8x GPU targets</h2><div className="mt-3 space-y-2">{gpuTargets.length ? gpuTargets.map((gpu) => <div key={gpu.id} className="rounded-xl bg-slate-950/60 p-3 text-sm"><div className="font-semibold">{gpu.displayName || gpu.id}</div><div className="text-slate-400">{gpu.totalEightGpuVramGb ?? 0}GB VRAM / 8 GPUs · {gpu.currentlyPricedForEightGpu ? 'priced' : 'not currently priced'}</div></div>) : <p className="text-sm text-slate-400">API not connected yet. Add RUNPOD_API_KEY to API environment.</p>}</div></div>
+        <div className="card"><h2 className="text-xl font-bold">RunPod 8x GPU targets</h2><div className="mt-3 space-y-2">{gpuTargets.length ? gpuTargets.map((gpu) => <div key={gpu.id} className="rounded-xl bg-slate-950/60 p-3 text-sm"><div className="font-semibold">{gpu.displayName || gpu.id}</div><div className="text-slate-400">{gpu.totalEightGpuVramGb ?? 0}GB VRAM / 8 GPUs · {gpu.currentlyPricedForEightGpu ? 'priced' : 'not currently priced'}</div></div>) : <p className="text-sm text-slate-400">API not connected yet. Add the RunPod key to the backend runtime environment.</p>}</div></div>
         <div className="card"><h2 className="text-xl font-bold">Task queue</h2><div className="mt-3 space-y-2">{state.tasks.length ? state.tasks.map((task) => <p key={task.id} className="text-sm text-slate-300">{task.title} — {task.status}</p>) : <p className="text-sm text-slate-400">No tasks queued.</p>}</div></div>
         <div className="card"><h2 className="text-xl font-bold">Recent audit</h2><div className="mt-3 space-y-2">{state.auditLogs.length ? state.auditLogs.slice(0, 5).map((log) => <p key={log.id} className="text-sm text-slate-300">{log.action} — {log.status}</p>) : <p className="text-sm text-slate-400">No audit events yet.</p>}</div></div>
         <div className="card"><h2 className="text-xl font-bold">Cost events</h2><div className="mt-3 space-y-2">{state.costEvents.length ? state.costEvents.slice(0, 5).map((event) => <p key={event.id} className="text-sm text-slate-300">{event.eventType} — ${event.estimatedHourlyCost ?? 0}/hr</p>) : <p className="text-sm text-slate-400">No cost events yet.</p>}</div></div>

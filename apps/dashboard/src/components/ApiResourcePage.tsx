@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-import { createSupabaseBrowserClient } from '../lib/supabaseClient';
+import { authenticatedFetch } from '../lib/authenticatedApi';
 
 interface ApiAction { label: string; method: 'GET' | 'POST'; endpoint: string; body?: Record<string, unknown> }
 
@@ -12,8 +12,6 @@ interface ApiResourcePageProps {
   actions?: ApiAction[];
 }
 
-const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
 export function ApiResourcePage({ title, description, endpoint, actions = [] }: ApiResourcePageProps) {
   const [data, setData] = useState<unknown>(null);
   const [error, setError] = useState<string | null>(null);
@@ -23,9 +21,7 @@ export function ApiResourcePage({ title, description, endpoint, actions = [] }: 
     setLoading(true);
     setError(null);
     try {
-      const { data } = await createSupabaseBrowserClient().auth.getSession();
-      const headers = { ...(init?.headers as Record<string, string> | undefined), ...(data.session?.access_token ? { authorization: `Bearer ${data.session.access_token}` } : {}) };
-      const response = await fetch(`${apiBase}${target}`, { ...init, headers });
+      const response = await authenticatedFetch(target, init);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
       setData(payload);
