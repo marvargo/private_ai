@@ -1,8 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { checkLlama405BFeasibility } from '../services/feasibility.js';
-import { assertStartAllowed } from '../services/costControls.js';
-import { listRunPodGpuTypes, listRunPodPods, startRunPodPod, stopRunPodPod, testRunPodConnection } from '../integrations/runpod.js';
+import { listRunPodGpuTypes } from '../integrations/runpod.js';
 import { listRepos, testGitHubToken } from '../integrations/github.js';
 import { chatWithPrivateModel } from '../services/modelClient.js';
 import { env } from '../utils/env.js';
@@ -16,6 +15,7 @@ import { createCredential, deleteCredential, listCredentials, updateCredentialSt
 import { productionReadinessWarnings } from '../utils/env.js';
 import { listApprovals, requestApproval, resolveApproval } from '../services/approvals.js';
 import { checkAutoStop, emergencyStopAll, manualStopSession } from '../services/sessionSafety.js';
+import { createLlama405BPodTemplate, createQwenCoderPodTemplate, createRunPodPod, createSmallTestPodTemplate, deleteRunPodPod, emergencyStopAllActiveSessions, getRunPodPodLogs, getRunPodPodStatus, listRunPodPods, scheduleAutoStop, startRunPodPod, stopRunPodPod, testRunPodConnection } from '../services/runpodLifecycle.js';
 import { getSettings, patchSettings } from '../services/settings.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
@@ -124,18 +124,33 @@ export async function registerRoutes(app: FastifyInstance) {
     return result;
   });
   app.get('/runpod/gpu-targets', async () => summarizeTargetGpus(await listRunPodGpuTypes()));
-  app.get('/runpod/pods', listRunPodPods);
+  app.get('/runpod/pods', async () => listRunPodPods());
+  app.post('/runpod/pods', async (req) => {
+    const body = z.object({
+      template: z.enum(['llama405b', 'qwen-coder', 'small-test']).default('small-test'),
+      approved: z.boolean().default(false),
+      estimatedHourlyCost: z.number().optional(),
+      hours: z.number().default(env.DEFAULT_SESSION_HOURS),
+    }).parse(req.body ?? {});
+    const template = body.template === 'llama405b' ? createLlama405BPodTemplate() : body.template === 'qwen-coder' ? createQwenCoderPodTemplate() : createSmallTestPodTemplate();
+    return createRunPodPod(template, { approved: body.approved, estimatedHourlyCost: body.estimatedHourlyCost, hours: body.hours });
+  });
+  app.get('/runpod/pods/:podId/status', async (req) => getRunPodPodStatus((req.params as { podId: string }).podId));
+  app.get('/runpod/pods/:podId/logs', async (req) => getRunPodPodLogs((req.params as { podId: string }).podId));
   app.post('/runpod/pods/:podId/start', async (req) => {
     const body = z.object({ estimatedHourlyCost: z.number().default(0), hours: z.number().default(4) }).parse(req.body ?? {});
-    const gate = assertStartAllowed(body.estimatedHourlyCost, body.hours, { maxSessionHours: env.MAX_SESSION_HOURS });
-    if (!gate.allowed) {
-      await writeAudit({ actorType: 'admin', action: 'runpod.start_blocked', targetType: 'pod', targetId: (req.params as { podId: string }).podId, status: 'blocked', metadata: gate });
-      return { ok: false, ...gate };
-    }
-    return startRunPodPod((req.params as { podId: string }).podId);
+    return startRunPodPod((req.params as { podId: string }).podId, body);
   });
   app.post('/runpod/pods/:podId/stop', async (req) => stopRunPodPod((req.params as { podId: string }).podId));
-  app.post('/runpod/emergency-stop', async () => emergencyStopAll());
+  app.delete('/runpod/pods/:podId', async (req) => {
+    const body = z.object({ approved: z.boolean().default(false) }).parse(req.body ?? {});
+    return deleteRunPodPod((req.params as { podId: string }).podId, body.approved);
+  });
+  app.post('/runpod/sessions/:sessionId/auto-stop', async (req) => {
+    const body = z.object({ hours: z.number().default(env.DEFAULT_SESSION_HOURS) }).parse(req.body ?? {});
+    return scheduleAutoStop((req.params as { sessionId: string }).sessionId, body.hours);
+  });
+  app.post('/runpod/emergency-stop', async () => emergencyStopAllActiveSessions());
 
   app.get('/sessions', async () => listSessions());
   app.post('/sessions', async (req) => createSession(z.object({ sessionName: z.string().min(3), gpuType: z.string(), gpuCount: z.number().min(1), modelRole: z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops']).optional(), modelId: z.string().optional(), estimatedHourlyCost: z.number().optional(), maxHours: z.number().max(env.MAX_SESSION_HOURS).default(env.MAX_SESSION_HOURS), podId: z.string().optional(), endpointUrl: z.string().optional() }).parse(req.body)));
