@@ -50,3 +50,21 @@ export function productionReadinessWarnings() {
   if (env.ALLOW_EXTERNAL_MODEL_PROVIDERS === 'true') warnings.push('External model providers are enabled; private-by-default mode expects this to stay false.');
   return warnings;
 }
+
+export function assertProductionReadyEnv() {
+  if (env.NODE_ENV !== 'production') return;
+  const missing = [
+    ['NEXT_PUBLIC_SUPABASE_URL', env.NEXT_PUBLIC_SUPABASE_URL],
+    ['SUPABASE_SERVICE_ROLE_KEY', env.SUPABASE_SERVICE_ROLE_KEY],
+    ['SUPABASE_JWKS_URL', env.SUPABASE_JWKS_URL],
+    ['ENCRYPTION_KEY', env.ENCRYPTION_KEY],
+  ].filter(([, value]) => !value);
+
+  if (missing.length > 0) {
+    throw new Error(`Production configuration is incomplete: ${missing.map(([key]) => key).join(', ')}`);
+  }
+
+  if (env.ALLOW_EXTERNAL_MODEL_PROVIDERS === 'true') {
+    throw new Error('External model providers must remain disabled by default in production.');
+  }
+}
