@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { checkLlama405BFeasibility } from '../services/feasibility.js';
 import { listRunPodGpuTypes } from '../integrations/runpod.js';
-import { listRepos, testGitHubToken } from '../integrations/github.js';
+
 import { chatWithPrivateModel } from '../services/modelClient.js';
 import { env } from '../utils/env.js';
 import { getRuntimeStatus } from '../services/store.js';
@@ -21,6 +21,7 @@ import { getModelRuntimeLogs, getModelRuntimeStatus, pollModelRuntimes, restartM
 import { addConversationMessage, createConversation, getConversation, listConversationMessages, listConversations } from '../services/conversations.js';
 import { privateChatCompletion, privateChatCompletionStream } from '../services/privateChat.js';
 import { cancelTask, retryTask, runTask } from '../services/taskExecutor.js';
+import { connectGitHubRepo, createGitHubBranch, createOrUpdateGitHubFile, listGitHubPullRequests, listGitHubRepos, openGitHubPullRequest, readGitHubActionsStatus, readGitHubFile, readGitHubTree, testGitHubToken } from '../services/githubService.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
 
@@ -212,8 +213,16 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/tasks/:taskId/status', async (req) => { const body = z.object({ status: z.enum(['queued', 'running', 'waiting_approval', 'completed', 'failed', 'cancelled']), outputSummary: z.string().optional() }).parse(req.body); return updateTaskStatus((req.params as { taskId: string }).taskId, body.status, body.outputSummary); });
 
   app.get('/audit-logs', async () => listAuditLogs());
-  app.get('/github/test', testGitHubToken);
-  app.get('/github/repos', listRepos);
+  app.post('/github/test', async () => testGitHubToken());
+  app.get('/github/repos', listGitHubRepos);
+  app.post('/github/repos/connect', async (req) => connectGitHubRepo(z.object({ fullName: z.string(), defaultBranch: z.string().optional(), private: z.boolean().optional(), providerCredentialId: z.string().optional() }).parse(req.body)));
+  app.get('/github/repos/:repoId/tree', async (req) => { const query = z.object({ ref: z.string().optional() }).parse(req.query); return readGitHubTree((req.params as { repoId: string }).repoId, query.ref); });
+  app.get('/github/repos/:repoId/file', async (req) => { const query = z.object({ path: z.string(), ref: z.string().optional() }).parse(req.query); return readGitHubFile((req.params as { repoId: string }).repoId, query.path, query.ref); });
+  app.post('/github/repos/:repoId/branch', async (req) => { const body = z.object({ branch: z.string(), fromRef: z.string().optional() }).parse(req.body); return createGitHubBranch((req.params as { repoId: string }).repoId, body.branch, body.fromRef); });
+  app.post('/github/repos/:repoId/files', async (req) => createOrUpdateGitHubFile((req.params as { repoId: string }).repoId, z.object({ path: z.string(), content: z.string(), branch: z.string(), message: z.string(), sha: z.string().optional() }).parse(req.body)));
+  app.post('/github/repos/:repoId/pull-request', async (req) => openGitHubPullRequest((req.params as { repoId: string }).repoId, z.object({ title: z.string(), body: z.string().optional(), head: z.string(), base: z.string().optional() }).parse(req.body)));
+  app.get('/github/repos/:repoId/pull-requests', async (req) => listGitHubPullRequests((req.params as { repoId: string }).repoId));
+  app.get('/github/repos/:repoId/actions', async (req) => { const query = z.object({ ref: z.string().optional() }).parse(req.query); return readGitHubActionsStatus((req.params as { repoId: string }).repoId, query.ref); });
   app.post('/chat', async (req) => {
     const body = z.object({ messages: z.array(z.object({ role: z.string(), content: z.string() })), temperature: z.number().optional(), max_tokens: z.number().optional(), modelRole: modelRoleSchema.default('auto'), taskType: z.string().default('business_strategy') }).parse(req.body);
     return chatWithPrivateModel(body.messages, body);

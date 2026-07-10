@@ -1,4 +1,17 @@
-import { Octokit } from 'octokit'; import { env } from '../utils/env.js';
-function client(){ if(!env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required'); return new Octokit({auth:env.GITHUB_TOKEN}); }
-export async function testGitHubToken(){ const {data}=await client().rest.users.getAuthenticated(); return {ok:true, login:data.login}; }
-export async function listRepos(){ const {data}=await client().rest.repos.listForAuthenticatedUser({per_page:100, sort:'updated'}); return data.map(r=>({fullName:r.full_name, private:r.private, defaultBranch:r.default_branch})); }
+import { Octokit } from 'octokit';
+import { env } from '../utils/env.js';
+
+export function githubClient() {
+  if (!env.GITHUB_TOKEN) throw new Error('GITHUB_TOKEN is required');
+  return new Octokit({ auth: env.GITHUB_TOKEN });
+}
+
+export async function testGitHubToken(octokit = githubClient()) {
+  const { data } = await octokit.rest.users.getAuthenticated();
+  return { ok: true, login: data.login };
+}
+
+export async function listRepos(octokit = githubClient()) {
+  const { data } = await octokit.rest.repos.listForAuthenticatedUser({ per_page: 100, sort: 'updated' });
+  return data.map((repo) => ({ id: String(repo.id), owner: repo.owner.login, repoName: repo.name, fullName: repo.full_name, private: repo.private, defaultBranch: repo.default_branch }));
+}
