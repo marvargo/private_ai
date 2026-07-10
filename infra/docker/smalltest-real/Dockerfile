@@ -17,7 +17,8 @@ RUN pip install --no-cache-dir \
   uvicorn[standard]==0.34.0 \
   transformers==4.48.0 \
   accelerate==1.2.1 \
-  torch --index-url https://download.pytorch.org/whl/cpu
+  --extra-index-url https://download.pytorch.org/whl/cpu \
+  torch
 
 WORKDIR /app
 
