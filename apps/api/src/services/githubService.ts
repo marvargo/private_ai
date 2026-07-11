@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { GitHubRepo } from '@wyndme/shared';
-import { githubClient, listRepos as providerListRepos, testGitHubToken } from '../integrations/github.js';
+import { githubClient, listReposResolved, testGitHubTokenResolved } from '../integrations/github.js';
 import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/supabaseClient.js';
 import { requestApproval } from './approvals.js';
 import { writeAudit } from './orchestrator.js';
@@ -12,9 +12,9 @@ function stripPrefix(value: string) { return value.replace(/^repo_/, ''); }
 function toRecord(row: any): GitHubRepo { return { id: `repo_${row.id}`, providerCredentialId: row.provider_credential_id ?? undefined, owner: row.owner, repoName: row.repo_name, fullName: row.full_name, defaultBranch: row.default_branch ?? undefined, private: Boolean(row.private), connectedAt: row.connected_at }; }
 function splitFullName(fullName: string) { const [owner, repo] = fullName.split('/'); if (!owner || !repo) throw new Error('Repository full name must be owner/repo'); return { owner, repo }; }
 
-export { testGitHubToken };
+export async function testGitHubToken() { return testGitHubTokenResolved(); }
 
-export async function listGitHubRepos() { return providerListRepos(); }
+export async function listGitHubRepos() { return listReposResolved(); }
 
 export async function connectGitHubRepo(input: { fullName: string; defaultBranch?: string; private?: boolean; providerCredentialId?: string }) {
   const { owner, repo } = splitFullName(input.fullName);

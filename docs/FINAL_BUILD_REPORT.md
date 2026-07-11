@@ -127,3 +127,15 @@ See `docs/model-runtime-validation.md` for the exact validation attempt, blocker
 - Qwen and Llama 405B have not been started and remain blocked until real small-test inference passes.
 - Supabase persistence rows were verified for the latest RunPod validation: ai_sessions, model_runtimes, cost_events, and audit_logs.
 - Last known passing GitHub Actions run: https://github.com/marvargo/private_ai/actions/runs/29111838177.
+
+## 2026-07-11 Follow-up Status
+
+- Status category: **blocked**
+- Production-ready: **no**
+- Docker small-test image built/pushed: **yes** via https://github.com/marvargo/private_ai/actions/runs/29114514232
+- RunPod can pull image: **no / blocked** until GHCR package is public or image-pull credentials are configured.
+- 004 migration live-applied: **no**
+- 005 migration live-applied: **no**
+- Real small-test inference: **not run**
+- Qwen: **not run**
+- Llama 405B: **not run**

@@ -4,6 +4,7 @@ import { env } from '../utils/env.js';
 import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/supabaseClient.js';
 import { requestApproval } from './approvals.js';
 import { writeAudit } from './orchestrator.js';
+import { getOptionalProviderSecret } from './credentialResolver.js';
 
 const projects = new Map<string, SupabaseProject>();
 const drafts = new Map<string, { id: string; projectId: string; name: string; sql: string; createdAt: string }>();
@@ -14,14 +15,16 @@ function stripPrefix(value: string) { return value.replace(/^(supabase_project|m
 function toProject(row: any): SupabaseProject { return { id: `supabase_project_${row.id}`, providerCredentialId: row.provider_credential_id ?? undefined, organizationId: row.organization_id ?? undefined, projectRef: row.project_ref, projectName: row.project_name ?? undefined, region: row.region ?? undefined, status: row.status ?? undefined, connectedAt: row.connected_at }; }
 
 export async function testSupabaseManagementConnection(fetcher: Fetcher = fetch) {
-  if (!env.SUPABASE_ACCESS_TOKEN) return { ok: false, reason: 'SUPABASE_ACCESS_TOKEN is required for Management API project listing.' };
-  const response = await fetcher('https://api.supabase.com/v1/projects', { headers: { authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` } });
+  const token = await getOptionalProviderSecret('supabase', 'management') ?? env.SUPABASE_ACCESS_TOKEN;
+  if (!token) return { ok: false, reason: 'SUPABASE_ACCESS_TOKEN is required for Management API project listing.' };
+  const response = await fetcher('https://api.supabase.com/v1/projects', { headers: { authorization: `Bearer ${token}` } });
   return { ok: response.ok, status: response.status };
 }
 
 export async function listSupabaseProjects(fetcher: Fetcher = fetch) {
-  if (env.SUPABASE_ACCESS_TOKEN) {
-    const response = await fetcher('https://api.supabase.com/v1/projects', { headers: { authorization: `Bearer ${env.SUPABASE_ACCESS_TOKEN}` } });
+  const token = await getOptionalProviderSecret('supabase', 'management') ?? env.SUPABASE_ACCESS_TOKEN;
+  if (token) {
+    const response = await fetcher('https://api.supabase.com/v1/projects', { headers: { authorization: `Bearer ${token}` } });
     if (response.ok) return await response.json();
   }
   return Array.from(projects.values());

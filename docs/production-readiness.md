@@ -108,3 +108,22 @@ I will continue in this order:
 ## Worker lock migration live status
 
 `supabase/migrations/004_worker_locks_and_claims.sql` exists in the repo, but the live migration application attempt from this environment failed because the Supabase Postgres pooler was unreachable on port 5432. Production worker locking must not be considered live until the migration is applied and verified from an environment with database connectivity.
+
+## 2026-07-11 Production Readiness Follow-up
+
+Status category: **blocked**. Production-ready: **no**.
+
+Implemented in code:
+
+- Real small-test runtime image and Docker publish workflow.
+- Small-test QA routing for `small_test_validation` / validation-mode QA.
+- `modelFamily = test` runtime client support.
+- In-memory model registry activation when RunPod creates a small-test pod.
+- Migration `005_small_test_model_registry.sql` for the live small-test registry row.
+- Vault-first credential resolver with environment fallback.
+
+Blocked live validations:
+
+- Docker image was built/pushed, but unauthenticated GHCR manifest access returned HTTP 401. The package must be made public or RunPod image-pull credentials must be configured before RunPod can pull it.
+- Worker lock migration 004 and small-test registry migration 005 are not live-applied from this environment because no MCP SQL execution tool is available and the database push path is not reachable without an IPv4-compatible database URL or dashboard SQL execution.
+- Real small-test inference, dashboard browser chat, worker real AI task execution, Qwen, and Llama remain **not run**.

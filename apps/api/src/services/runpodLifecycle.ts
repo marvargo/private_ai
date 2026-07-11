@@ -4,6 +4,7 @@ import { assertStartAllowed } from './costControls.js';
 import { requestApproval } from './approvals.js';
 import { createSession, listSessions, updateSessionStatus, writeAudit, writeCostEvent } from './orchestrator.js';
 import { env } from '../utils/env.js';
+import { updateModelRuntimeStatusByRoleFamily } from './modelRegistry.js';
 import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/supabaseClient.js';
 import {
   RunPodPodStatus,
@@ -45,8 +46,12 @@ function modelFamilyForRole(role: ConcreteModelRole) {
   return ['coding', 'qa', 'database', 'devops'].includes(role) ? 'qwen' : 'llama';
 }
 
+function modelFamilyForTemplate(template: RunPodPodTemplate) {
+  return template.modelFamily ?? (template.name.includes('qwen') ? 'qwen' : template.name.includes('small-test') ? 'test' : 'llama');
+}
+
 function defaultRoleForTemplate(template: RunPodPodTemplate): ConcreteModelRole {
-  return template.modelRole ?? (template.name.includes('qwen') ? 'coding' : 'business_reasoning');
+  return template.modelRole ?? (template.name.includes('qwen') ? 'coding' : template.name.includes('small-test') ? 'qa' : 'business_reasoning');
 }
 
 function runtimeStatusFromPod(status?: string): 'starting' | 'healthy' | 'stopped' | 'failed' {
@@ -61,6 +66,7 @@ function runtimeStatusFromPod(status?: string): 'starting' | 'healthy' | 'stoppe
 export function createLlama405BPodTemplate(): RunPodPodTemplate {
   return {
     name: 'wyndme-llama-405b-vllm',
+    modelFamily: 'llama',
     gpuCount: 8,
     gpuType: env.RUNPOD_DEFAULT_GPU_TYPE,
     volumeGb: env.RUNPOD_DEFAULT_VOLUME_GB,
@@ -84,6 +90,7 @@ export function createLlama405BPodTemplate(): RunPodPodTemplate {
 export function createQwenCoderPodTemplate(): RunPodPodTemplate {
   return {
     name: 'wyndme-qwen-coder-vllm',
+    modelFamily: 'qwen',
     gpuCount: 4,
     gpuType: env.RUNPOD_DEFAULT_GPU_TYPE,
     volumeGb: 1000,
@@ -110,6 +117,7 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
   if (mode === 'mock') {
     return {
       name: 'wyndme-small-test-mock',
+      modelFamily: 'test',
       gpuCount: 1,
       gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
       volumeGb: 20,
@@ -129,6 +137,7 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
   if (mode === 'vllm') {
     return {
       name: 'wyndme-small-test-vllm',
+      modelFamily: 'test',
       gpuCount: 1,
       gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
       volumeGb: 80,
@@ -150,6 +159,7 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
 
   return {
     name: 'wyndme-small-test-real',
+    modelFamily: 'test',
     gpuCount: 1,
     gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
     volumeGb: 80,
@@ -169,7 +179,8 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
   };
 }
 
-async function persistRuntime(session: Awaited<ReturnType<typeof createSession>>, pod: RunPodPodStatus, status: 'starting' | 'healthy' | 'stopped' | 'failed') {
+async function persistRuntime(session: Awaited<ReturnType<typeof createSession>>, pod: RunPodPodStatus, status: 'starting' | 'healthy' | 'stopped' | 'failed', template: RunPodPodTemplate) {
+  const modelFamily = modelFamilyForTemplate(template);
   if (!isSupabaseConfigured()) return;
   try {
     const id = stripPrefix(session.id);
@@ -179,7 +190,7 @@ async function persistRuntime(session: Awaited<ReturnType<typeof createSession>>
       model_id: session.modelId,
       model_role: session.modelRole,
       model_provider: 'runpod',
-      model_family: modelFamilyForRole(session.modelRole),
+      model_family: modelFamily,
       gpu_provider: 'runpod',
       gpu_profile: `${session.gpuCount}x ${session.gpuType ?? pod.gpuType ?? 'RunPod GPU'}`,
       cost_estimate_hourly_usd: session.estimatedHourlyCost,
@@ -187,8 +198,8 @@ async function persistRuntime(session: Awaited<ReturnType<typeof createSession>>
       status,
       health_url: session.endpointUrl ? `${session.endpointUrl.replace(/\/$/, '')}/health` : undefined,
       api_base_url: session.endpointUrl,
-      context_length: modelFamilyForRole(session.modelRole) === 'qwen' ? 262144 : 32768,
-      quantization: modelFamilyForRole(session.modelRole) === 'qwen' ? 'fp8' : 'fp8',
+      context_length: modelFamily === 'qwen' ? 262144 : modelFamily === 'test' ? 4096 : 32768,
+      quantization: modelFamily === 'test' ? undefined : 'fp8',
       tensor_parallel_size: session.gpuCount,
       pipeline_parallel_size: 1,
       last_health_check_at: new Date().toISOString(),
@@ -198,7 +209,8 @@ async function persistRuntime(session: Awaited<ReturnType<typeof createSession>>
     await getSupabaseAdminClient()
       .from('model_registry')
       .update({ status, model_endpoint_url: session.endpointUrl, updated_at: new Date().toISOString() })
-      .eq('model_role', session.modelRole);
+      .eq('model_role', session.modelRole)
+      .eq('model_family', modelFamily);
   } catch (error) {
     await writeAudit({ actorType: 'system', action: 'runpod.runtime_persist_failed', targetType: 'model_runtime', targetId: session.id, status: 'failed', metadata: { message: error instanceof Error ? error.message : String(error) } });
   }
@@ -230,7 +242,7 @@ export async function createRunPodPod(template: RunPodPodTemplate, input: StartP
     return { ok: false, reason: gate.reason, approval: undefined };
   }
 
-  if (modelFamilyForRole(modelRole) === 'llama' && !input.approved) {
+  if (modelFamilyForTemplate(template) === 'llama' && !input.approved) {
     const approval = await requestApproval({ approvalType: 'runpod_start', requestedAction: `Start ${template.name}`, riskLevel: 'high', requestedBy: 'admin', reason: 'Llama 405B RunPod sessions are cost-impacting and require approval.' });
     await writeAudit({ actorType: 'admin', action: 'runpod.create_waiting_approval', targetType: 'pod_template', targetId: template.name, status: 'blocked', metadata: { approvalId: approval.id } });
     return { ok: false, reason: 'Approval required before starting Llama 405B RunPod session', approval };
@@ -251,7 +263,13 @@ export async function createRunPodPod(template: RunPodPodTemplate, input: StartP
   await updateSessionStatus(session.id, runtimeStatusFromPod(pod.runtimeStatus) === 'healthy' ? 'running' : 'starting');
   await writeCostEvent({ sessionId: session.id, provider: 'runpod', resourceType: 'runpod_pod', gpuType: template.gpuType, gpuCount: template.gpuCount, estimatedHourlyCost, estimatedTotalCost: estimatedHourlyCost * hours, eventType: 'runpod.create' });
   await writeAudit({ actorType: 'admin', action: 'runpod.pod_created', targetType: 'pod', targetId: pod.id, status: 'ok', metadata: { template: template.name, endpointUrl: pod.endpointUrl, autoStopAt: session.autoStopAt } });
-  await persistRuntime(session, pod, runtimeStatusFromPod(pod.runtimeStatus));
+  const runtimeStatus = runtimeStatusFromPod(pod.runtimeStatus);
+  try {
+    updateModelRuntimeStatusByRoleFamily(modelRole, modelFamilyForTemplate(template), runtimeStatus, pod.endpointUrl);
+  } catch (error) {
+    await writeAudit({ actorType: 'system', action: 'runpod.in_memory_registry_update_failed', targetType: 'model_registry', targetId: `${modelFamilyForTemplate(template)}/${modelRole}`, status: 'failed', metadata: { message: error instanceof Error ? error.message : String(error) } });
+  }
+  await persistRuntime(session, pod, runtimeStatus, template);
   return { ok: true, pod, session, autoStopAt: session.autoStopAt };
 }
 

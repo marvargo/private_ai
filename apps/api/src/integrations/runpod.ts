@@ -1,4 +1,5 @@
 import { env } from '../utils/env.js';
+import { getRunPodApiKey } from '../services/credentialResolver.js';
 import { RunPodGpuCatalogItem } from '../services/runpodCatalog.js';
 
 const ENDPOINT = 'https://api.runpod.io/graphql';
@@ -16,6 +17,7 @@ export interface RunPodPodTemplate {
   healthcheck?: string;
   estimatedHourlyCost?: number;
   modelRole?: 'business_reasoning' | 'research' | 'architecture' | 'coding' | 'qa' | 'database' | 'devops';
+  modelFamily?: 'llama' | 'qwen' | 'test';
 }
 
 export interface RunPodPodStatus {
@@ -30,8 +32,8 @@ export interface RunPodPodStatus {
 }
 
 export async function runpodGraphql<T>(query: string, variables: Record<string, unknown> = {}) {
-  if (!env.RUNPOD_API_KEY) throw new Error('RUNPOD_API_KEY is required');
-  const url = `${ENDPOINT}?api_key=${encodeURIComponent(env.RUNPOD_API_KEY)}`;
+  const apiKey = await getRunPodApiKey();
+  const url = `${ENDPOINT}?api_key=${encodeURIComponent(apiKey)}`;
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'user-agent': 'wyndme-private-ai-api' },

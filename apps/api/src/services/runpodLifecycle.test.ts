@@ -26,10 +26,13 @@ describe('RunPod lifecycle orchestration', () => {
     const test = createSmallTestPodTemplate();
 
     expect(llama.gpuCount).toBe(8);
+    expect(llama.modelFamily).toBe('llama');
     expect(llama.env.MODEL_ID).toContain('405B');
     expect(qwen.gpuCount).toBe(4);
+    expect(qwen.modelFamily).toBe('qwen');
     expect(qwen.env.MODEL_ID).toContain('Qwen');
     expect(test.gpuCount).toBe(1);
+    expect(test.modelFamily).toBe('test');
     expect(JSON.stringify([llama, qwen, test])).not.toContain('RUNPOD_API_KEY');
   });
 
@@ -40,6 +43,7 @@ describe('RunPod lifecycle orchestration', () => {
     expect(template.containerImage).toBe('ghcr.io/marvargo/private-ai-smalltest-real:latest');
     expect(template.ports).toEqual([{ containerPort: 8000, protocol: 'http' }]);
     expect(template.env.SERVED_MODEL_NAME).toBe('wyndme-small-test-real');
+    expect(template.modelFamily).toBe('test');
   });
 
   it('uses mock small-test mode on port 3000 when requested', () => {
@@ -107,4 +111,14 @@ describe('RunPod lifecycle orchestration', () => {
     const result = await emergencyStopAllActiveSessions({ stopRunPodPod: async () => ({ ...mockPod, runtimeStatus: 'stopped' }) });
     expect(result.stoppedCount).toBeGreaterThanOrEqual(1);
   });
+
+  it('small-test pod creation updates the test QA model endpoint in memory', async () => {
+    const result = await createRunPodPod(createSmallTestPodTemplate(), { approved: true, hours: 1 }, { createRunPodPod: async () => mockPod });
+    expect(result.ok).toBe(true);
+    const { selectModelForTask } = await import('./modelRegistry.js');
+    const selected = selectModelForTask('small_test_validation', 'qa').model;
+    expect(selected.modelFamily).toBe('test');
+    expect(selected.endpointUrl).toBe(mockPod.endpointUrl);
+  });
+
 });

@@ -1,4 +1,5 @@
 import { env } from '../utils/env.js';
+import { getOptionalProviderSecret } from '../services/credentialResolver.js';
 
 export interface HuggingFaceModelAccessResult {
   modelId: string;
@@ -11,10 +12,11 @@ export interface HuggingFaceModelAccessResult {
   status?: number;
 }
 
-export async function checkHuggingFaceModelAccess(modelId: string, token = env.HF_TOKEN): Promise<HuggingFaceModelAccessResult> {
-  if (!token) return { modelId, ok: false, error: 'HF_TOKEN is required for model access checks' };
+export async function checkHuggingFaceModelAccess(modelId: string, token?: string): Promise<HuggingFaceModelAccessResult> {
+  const resolvedToken = token ?? await getOptionalProviderSecret('huggingface') ?? env.HF_TOKEN;
+  if (!resolvedToken) return { modelId, ok: false, error: 'HF_TOKEN is required for model access checks' };
   const res = await fetch(`https://huggingface.co/api/models/${modelId}`, {
-    headers: { authorization: `Bearer ${token}`, 'user-agent': 'wyndme-private-ai-access-check' },
+    headers: { authorization: `Bearer ${resolvedToken}`, 'user-agent': 'wyndme-private-ai-access-check' },
   });
   if (!res.ok) {
     return { modelId, ok: false, status: res.status, error: `Hugging Face HTTP ${res.status}` };

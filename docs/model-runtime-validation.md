@@ -130,3 +130,64 @@ Required verification after applying from an environment with DB connectivity:
 - `ai_tasks.locked_by` exists
 - `ai_tasks.lock_expires_at` exists
 - `public.claim_next_ai_task(worker_id text, lock_seconds integer)` exists
+
+## 2026-07-11 Real Small-Test Validation Follow-up
+
+Status category: **blocked**. Production-ready: **no**.
+
+### Docker image and GHCR visibility
+
+- Docker workflow: `Docker Small Test Real Runtime`
+- Last successful workflow run URL: https://github.com/marvargo/private_ai/actions/runs/29114514232
+- Image target: `ghcr.io/marvargo/private-ai-smalltest-real:latest`
+- Image built/pushed: **yes**
+- Public unauthenticated manifest check: **failed with HTTP 401 Unauthorized**
+- Image visibility: **private or otherwise not anonymously pullable**
+- RunPod pull result: **blocked/not run** because RunPod has not been given image pull credentials and the GHCR image is not publicly pullable from an unauthenticated manifest request.
+
+### Live Supabase migration status
+
+- `004_worker_locks_and_claims.sql` live-applied: **no**
+- `005_small_test_model_registry.sql` live-applied: **no**
+- Local migration files exist for both 004 and 005.
+- MCP `execute_sql` was not available in this environment.
+- Supabase CLI push previously reached project linking, but direct database push was blocked by the environment/database network path and requires an IPv4-compatible database URL or SQL execution from the Supabase dashboard/MCP.
+
+Expected 004 verification SQL after apply:
+
+```sql
+select column_name
+from information_schema.columns
+where table_schema = 'public'
+  and table_name = 'ai_tasks'
+  and column_name in ('locked_at', 'locked_by', 'lock_expires_at')
+order by column_name;
+
+select proname
+from pg_proc
+where proname = 'claim_next_ai_task';
+```
+
+Expected 005 verification SQL after apply:
+
+```sql
+select model_family, model_role, served_model_name, priority, status
+from public.model_registry
+where model_family = 'test' and model_role = 'qa';
+```
+
+### Real inference gates
+
+| Gate | Status | Notes |
+| --- | --- | --- |
+| `/health` | not run | Blocked before RunPod pod start by private GHCR image pull precondition. |
+| `/v1/models` | not run | Blocked before RunPod pod start by private GHCR image pull precondition. |
+| `/v1/chat/completions` | not run | Blocked before RunPod pod start by private GHCR image pull precondition. |
+| Streaming | not run | Blocked before RunPod pod start by private GHCR image pull precondition. |
+| API `/model/validate` | not run | Requires reachable real small-test endpoint. |
+| API `/chat/completions` with `qa` / `small_test_validation` | not run | Code routing is implemented, live endpoint is still blocked. |
+| Dashboard browser chat | not run | Requires reachable real small-test endpoint. |
+| Worker real task execution | not run | Requires live 004 migration plus reachable real small-test endpoint. |
+| Supabase persistence row verification | not run | Requires live pod/session run after migrations. |
+| Qwen | not run | Correctly blocked until real small-test inference passes. |
+| Llama 405B | not run | Correctly blocked until real small-test and Qwen pass. |

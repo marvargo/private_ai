@@ -1,9 +1,10 @@
 # CI Validation
 
-Last checked: 2026-07-10
+Status category: **implemented in code** / **mock-platform validated** where applicable.
 
-| Commit | Run ID | URL | Status |
-| --- | ---: | --- | --- |
-| `a1822990f05b1c52e119ca701e23cc3a869bd14e` | `29111838177` | https://github.com/marvargo/private_ai/actions/runs/29111838177 | completed: success |
+Last observed successful CI run for `main` before this follow-up branch state:
 
-The workflow runs install, secret scan, migration presence check, lint, typecheck, tests, and build.
+- CI: https://github.com/marvargo/private_ai/actions/runs/29114515407
+- Docker Small Test Real Runtime: https://github.com/marvargo/private_ai/actions/runs/29114514232
+
+The Docker workflow built and pushed `ghcr.io/marvargo/private-ai-smalltest-real:latest`, but the image manifest was not anonymously readable from GHCR during validation, so RunPod pull remains blocked until package visibility or registry credentials are fixed.

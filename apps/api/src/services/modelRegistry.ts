@@ -53,6 +53,24 @@ for (const role of ['qa', 'database', 'devops'] as const) {
 }
 
 register({
+  id: 'small-test-qa',
+  modelName: process.env.TEST_MODEL_ID || 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
+  modelProvider: 'runpod',
+  modelFamily: 'test',
+  modelRole: 'qa',
+  endpointUrl: process.env.TEST_MODEL_SERVER_URL,
+  servingEngine: 'vllm',
+  gpuProvider: 'runpod',
+  gpuProfile: process.env.TEST_MODEL_GPU_PROFILE || '1xH100-or-compatible-small-test',
+  status: process.env.TEST_MODEL_SERVER_URL ? 'stopped' : 'not_configured',
+  costEstimateHourlyUsd: Number(process.env.TEST_MODEL_ESTIMATED_HOURLY_USD || 0.5),
+  contextLength: Number(process.env.TEST_MODEL_CONTEXT_LENGTH || 4096),
+  enabled: process.env.TEST_MODEL_ENABLED !== 'false',
+  servedModelName: process.env.TEST_MODEL_SERVED_MODEL_NAME || 'wyndme-small-test-real',
+  priority: 1,
+});
+
+register({
   id: 'test-small-infra',
   modelName: process.env.TEST_MODEL_ID || 'Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8',
   modelProvider: 'runpod',
@@ -82,12 +100,32 @@ export function resolveModelRole(taskType: string, requestedRole: ModelRole): Co
   return (TASK_TYPE_MODEL_ROLE_DEFAULTS[taskType] ?? 'business_reasoning') as ConcreteModelRole;
 }
 
+function shouldUseSmallTestForQa(taskType: string, requestedRole: ModelRole) {
+  if (process.env.USE_SMALL_TEST_FOR_QA === 'false' && process.env.RUNPOD_SMALL_TEST_MODE !== 'real' && taskType !== 'small_test_validation') return false;
+  return (
+    process.env.USE_SMALL_TEST_FOR_QA === 'true'
+    || process.env.RUNPOD_SMALL_TEST_MODE === 'real'
+    || taskType === 'small_test_validation'
+    || requestedRole === 'qa'
+  );
+}
+
 export function selectModelForTask(taskType: string, requestedRole: ModelRole = 'auto') {
   const resolvedModelRole = resolveModelRole(taskType, requestedRole);
-  const preferredFamily = qwenRoles.has(resolvedModelRole) ? 'qwen' : llamaRoles.has(resolvedModelRole) ? 'llama' : undefined;
+  const preferredFamily =
+    resolvedModelRole === 'qa' && shouldUseSmallTestForQa(taskType, requestedRole)
+      ? 'test'
+      : qwenRoles.has(resolvedModelRole)
+        ? 'qwen'
+        : llamaRoles.has(resolvedModelRole)
+          ? 'llama'
+          : undefined;
   const candidates = listModelRegistry().filter((model) => model.enabled && model.modelRole === resolvedModelRole);
-  const familyCandidate = candidates.find((model) => model.modelFamily === preferredFamily);
-  const selected = familyCandidate ?? candidates[0] ?? listModelRegistry().find((model) => model.enabled && model.modelFamily === preferredFamily) ?? listModelRegistry().find((model) => model.enabled);
+  const selected =
+    candidates.find((model) => model.modelFamily === preferredFamily)
+    ?? candidates[0]
+    ?? listModelRegistry().find((model) => model.enabled && model.modelFamily === preferredFamily)
+    ?? listModelRegistry().find((model) => model.enabled);
   if (!selected) throw new Error(`No enabled model available for role ${resolvedModelRole}`);
   return { requestedRole, resolvedModelRole, model: selected };
 }
@@ -107,4 +145,25 @@ export function updateModelRuntimeStatus(id: string, status: ModelRegistryEntry[
   const updated = { ...existing, status, endpointUrl: endpointUrl ?? existing.endpointUrl };
   registry.set(id, updated);
   return updated;
+}
+
+export function updateModelRuntimeStatusByRoleFamily(
+  modelRole: ConcreteModelRole,
+  modelFamily: ModelRegistryEntry['modelFamily'],
+  status: ModelRegistryEntry['status'],
+  endpointUrl?: string,
+) {
+  const entries = Array.from(registry.values()).filter(
+    (model) => model.modelRole === modelRole && model.modelFamily === modelFamily,
+  );
+
+  if (entries.length === 0) {
+    throw new Error(`Model ${modelFamily}/${modelRole} not found`);
+  }
+
+  for (const entry of entries) {
+    registry.set(entry.id, { ...entry, status, endpointUrl: endpointUrl ?? entry.endpointUrl });
+  }
+
+  return entries.map((entry) => registry.get(entry.id)!);
 }

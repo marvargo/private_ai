@@ -12,6 +12,7 @@ import { listModelRegistry, selectModelForTask } from '../services/modelRegistry
 import { checkRequiredModelAccess } from '../integrations/huggingface.js';
 import { diagnoseSupabase } from '../integrations/supabase.js';
 import { createCredential, deleteCredential, listCredentials, updateCredentialStatus } from '../services/credentialVault.js';
+import { credentialRequirements } from '../services/credentialRequirements.js';
 import { productionReadinessWarnings } from '../utils/env.js';
 import { listApprovals, requestApproval, resolveApproval } from '../services/approvals.js';
 import { checkAutoStop, emergencyStopAll, manualStopSession } from '../services/sessionSafety.js';
@@ -53,7 +54,7 @@ const settingsPatchSchema = z.object({
   }).optional(),
 });
 
-const credentialProviderSchema = z.enum(['runpod', 'github', 'supabase', 'huggingface']);
+const credentialProviderSchema = z.enum(['runpod', 'github', 'supabase', 'huggingface', 'llama_runtime', 'qwen_runtime']);
 const credentialWriteSchema = z.object({ credentialLabel: z.string().min(2).default('default'), value: z.string().min(8) });
 
 async function testProviderCredential(providerName: z.infer<typeof credentialProviderSchema>) {
@@ -132,6 +133,18 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/approvals/:approvalId/resolve', async (req) => { const body = z.object({ status: z.enum(['approved', 'rejected']), reason: z.string().optional() }).parse(req.body); return resolveApproval((req.params as { approvalId: string }).approvalId, body.status, body.reason); });
   app.get('/cost-events', async () => listCostEvents());
 
+  app.get('/credentials/requirements', async () => credentialRequirements());
+  app.post('/credentials/bootstrap', async (req) => {
+    const body = z.object({ credentials: z.array(z.object({
+      providerName: z.enum(['runpod', 'github', 'supabase', 'huggingface', 'llama_runtime', 'qwen_runtime']),
+      credentialLabel: z.string().min(2),
+      value: z.string().min(8),
+    })) }).parse(req.body ?? {});
+    const saved = [];
+    for (const credential of body.credentials) saved.push(await createCredential(credential));
+    await writeAudit({ actorType: 'admin', action: 'credentials.bootstrap', targetType: 'provider_credential', status: 'ok', metadata: { count: saved.length } });
+    return { ok: true, credentials: saved };
+  });
   app.get('/credentials/status', async () => listCredentials());
   app.get('/credentials', async (req) => {
     const query = z.object({ providerName: z.enum(['runpod', 'github', 'supabase', 'huggingface', 'llama_runtime', 'qwen_runtime']).optional() }).parse(req.query);
