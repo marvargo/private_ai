@@ -227,3 +227,40 @@ Important: this proves the row exists, but it is **not the same as applying the 
 - Real small-test inference: **not run** because the real image pull and 004 SQL migration prerequisites are not satisfied.
 - Qwen: **not run** because real small-test inference has not passed.
 - Llama 405B: **not run** because real small-test and Qwen have not passed.
+
+## 2026-07-11 Blocker-only execution attempt
+
+Status category: **blocked**. Production-ready: **no**.
+
+This pass intentionally did not start Qwen, Llama, dashboard polish, or real small-test pod validation because the two required prerequisites are still blocked.
+
+### Blocker 1 — SQL execution path for 004/005
+
+- Local `.env.local` was loaded without printing secret values.
+- Required Supabase env values were present in the local runtime.
+- Supabase MCP was configured in Codex with bearer-token env auth for project `zhcnrxcuyrxnrdqrfcfz`.
+- Direct MCP HTTP initialization/list attempts returned Cloudflare HTTP 403 / Error 1010, so the Supabase MCP SQL tool is not usable from this runtime.
+- Exact fallback check was run; `SUPABASE_DB_URL` is missing, so `psql` fallback cannot apply migrations.
+- SQL execution method used: **blocked**.
+- 004 migration live-applied: **no**.
+- 005 migration full SQL live-applied: **no**.
+- Existing live REST verification still shows the `test/qa` model registry row is present, but the 005 unique index cannot be applied without SQL execution.
+
+### Blocker 2 — GHCR image pull access
+
+- Docker workflow exists and the previous Docker Small Test Real Runtime workflow succeeded: https://github.com/marvargo/private_ai/actions/runs/29114514232
+- Image target: `ghcr.io/marvargo/private-ai-smalltest-real:latest`
+- Anonymous GHCR manifest check still returns HTTP 401 Unauthorized.
+- GitHub package API visibility change was attempted with the available GitHub auth, but the token cannot access/change the package visibility.
+- RunPod pull status: **blocked**, because the image is not anonymously pullable and image-pull credentials are not configured in the RunPod template/API path.
+
+### Gates intentionally not run
+
+- Real small-test pod creation: **not run**.
+- Real small-test `/health`: **not run**.
+- Real small-test `/v1/models`: **not run**.
+- Real small-test `/v1/chat/completions`: **not run**.
+- API `/model/validate`: **not run**.
+- Worker real task execution: **not run**.
+- Qwen: **not run**.
+- Llama 405B: **not run**.

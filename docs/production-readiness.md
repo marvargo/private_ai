@@ -141,3 +141,14 @@ Live Supabase status:
 - Supabase MCP/Management API SQL execution is blocked in this environment because the available Management/MCP token returns HTTP 403 and no MCP server is exposed to the tool runtime.
 
 Production remains blocked until SQL execution is available for 004/005, the GHCR image is pullable by RunPod, and real small-test inference passes before Qwen/Llama validation.
+
+## 2026-07-11 Blocker-only execution attempt
+
+Status category: **blocked**. Production-ready: **no**.
+
+The requested blocker-only pass confirmed both release-gate blockers remain unresolved:
+
+1. **Supabase SQL execution path is blocked.** Supabase MCP was configured with bearer-token env auth, but direct MCP access from this runtime returned HTTP 403 / Cloudflare Error 1010. `SUPABASE_DB_URL` is missing, so the required fallback `psql` path cannot apply migrations 004/005.
+2. **RunPod image pull is blocked.** The real small-test GHCR image was built by the Docker workflow, but anonymous manifest access returns HTTP 401 and the available GitHub auth cannot change package visibility through the GitHub packages API.
+
+Because those prerequisites remain blocked, real small-test pod validation, worker validation, Qwen validation, and Llama validation were intentionally not run.
