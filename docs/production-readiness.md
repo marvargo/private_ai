@@ -127,3 +127,17 @@ Blocked live validations:
 - Docker image was built/pushed, but unauthenticated GHCR manifest access returned HTTP 401. The package must be made public or RunPod image-pull credentials must be configured before RunPod can pull it.
 - Worker lock migration 004 and small-test registry migration 005 are not live-applied from this environment because no MCP SQL execution tool is available and the database push path is not reachable without an IPv4-compatible database URL or dashboard SQL execution.
 - Real small-test inference, dashboard browser chat, worker real AI task execution, Qwen, and Llama remain **not run**.
+
+## 2026-07-11 Recovery verification from GitHub main
+
+Status category: **blocked**. Production-ready: **no**.
+
+The code changes for credential resolver, small-test QA routing, `modelFamily = test`, RunPod model-family metadata, runtime activation, and migration file `005_small_test_model_registry.sql` are present on GitHub `main`.
+
+Live Supabase status:
+
+- 004 worker lock migration live-applied: **no**. Verification through PostgREST showed `ai_tasks.locked_at` is missing.
+- 005 SQL migration live-applied: **no**. The small-test registry row exists, but the unique index and formal SQL migration still require a SQL execution backend.
+- Supabase MCP/Management API SQL execution is blocked in this environment because the available Management/MCP token returns HTTP 403 and no MCP server is exposed to the tool runtime.
+
+Production remains blocked until SQL execution is available for 004/005, the GHCR image is pullable by RunPod, and real small-test inference passes before Qwen/Llama validation.

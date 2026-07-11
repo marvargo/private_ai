@@ -191,3 +191,39 @@ where model_family = 'test' and model_role = 'qa';
 | Supabase persistence row verification | not run | Requires live pod/session run after migrations. |
 | Qwen | not run | Correctly blocked until real small-test inference passes. |
 | Llama 405B | not run | Correctly blocked until real small-test and Qwen pass. |
+
+## 2026-07-11 Recovery verification from GitHub main
+
+Status category: **blocked**. Production-ready: **no**.
+
+This pass started from GitHub `main` and verified that the previously missing code changes are now present on GitHub `main` at commit `485f160789950725b9c94dd91bbc749fabd0758b`.
+
+### Live Supabase verification
+
+- `004_worker_locks_and_claims.sql` migration file exists in GitHub main.
+- Live `ai_tasks` lock-column verification via Supabase REST failed with `column ai_tasks.locked_at does not exist`, so 004 is **not live-applied**.
+- Supabase MCP resources are not exposed in this execution environment.
+- The previously supplied Supabase Management/MCP token returned HTTP 403 against Supabase Management API/MCP, so it cannot be used here to execute SQL.
+- The service-role/secret key can read/write table rows through PostgREST but cannot run DDL such as `alter table` or `create function`.
+
+### Live small-test model registry row
+
+The `test/qa` small-test registry row was inserted through backend-only Supabase service access because row-level REST writes are available. Verification query returned one row for:
+
+- `model_family`: `test`
+- `model_role`: `qa`
+- `served_model_name`: `wyndme-small-test-real`
+- `priority`: `1`
+- `status`: `not_configured`
+
+Important: this proves the row exists, but it is **not the same as applying the full 005 SQL migration**, because the unique index in `005_small_test_model_registry.sql` still requires SQL execution.
+
+### Current live blockers
+
+- 004 worker lock migration live-applied: **no**
+- 005 migration full SQL live-applied: **no**
+- 005 small-test registry row live-present: **yes**
+- GHCR small-test image public pull: **blocked/not verified as public**
+- Real small-test inference: **not run** because the real image pull and 004 SQL migration prerequisites are not satisfied.
+- Qwen: **not run** because real small-test inference has not passed.
+- Llama 405B: **not run** because real small-test and Qwen have not passed.
