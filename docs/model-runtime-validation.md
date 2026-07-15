@@ -264,3 +264,30 @@ This pass intentionally did not start Qwen, Llama, dashboard polish, or real sma
 - Worker real task execution: **not run**.
 - Qwen: **not run**.
 - Llama 405B: **not run**.
+
+
+## 2026-07-15 Supabase SQL unblocked; GHCR pull still blocked
+
+Status category: **blocked**. Production-ready: **no**.
+
+### Supabase SQL execution
+
+- SQL execution method used: **Supabase MCP direct JSON-RPC over streamable HTTP**.
+- `004_worker_locks_and_claims.sql` live-applied: **yes**.
+- `005_small_test_model_registry.sql` live-applied: **yes**.
+- Verified live `ai_tasks` lock columns: `lock_expires_at`, `locked_at`, `locked_by`.
+- Verified live function: `claim_next_ai_task`.
+- Verified live `model_registry` row: `test` / `qa` / `wyndme-small-test-real` with priority `1` and status `not_configured`.
+
+### RunPod image pull blocker
+
+- Docker small-test image built/pushed: **yes**.
+- Docker workflow run URL: https://github.com/marvargo/private_ai/actions/runs/29114514232
+- Image URL: `ghcr.io/marvargo/private-ai-smalltest-real:latest`
+- GHCR anonymous manifest check: **failed with HTTP 401 Unauthorized**.
+- GitHub package API visibility change: **failed** because the available GitHub token cannot access/change package visibility for this package.
+- RunPod can pull image: **no / not verified**.
+
+### Gates intentionally not run
+
+Real small-test pod creation, direct model endpoint checks, API model validation, API chat, dashboard browser chat, worker real task execution, Qwen, and Llama were intentionally not run because the real image is not pullable by RunPod yet.

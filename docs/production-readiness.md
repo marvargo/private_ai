@@ -152,3 +152,19 @@ The requested blocker-only pass confirmed both release-gate blockers remain unre
 2. **RunPod image pull is blocked.** The real small-test GHCR image was built by the Docker workflow, but anonymous manifest access returns HTTP 401 and the available GitHub auth cannot change package visibility through the GitHub packages API.
 
 Because those prerequisites remain blocked, real small-test pod validation, worker validation, Qwen validation, and Llama validation were intentionally not run.
+
+
+## 2026-07-15 Supabase SQL unblocked; image pull still blocked
+
+Status category: **blocked**. Production-ready: **no**.
+
+Resolved:
+
+- Supabase SQL execution path is now working through Supabase MCP direct JSON-RPC.
+- Migration 004 is live-applied and verified: `ai_tasks.locked_at`, `ai_tasks.locked_by`, `ai_tasks.lock_expires_at`, and `claim_next_ai_task` exist.
+- Migration 005 is live-applied and verified: `model_registry` has the `test` / `qa` / `wyndme-small-test-real` row.
+
+Still blocked:
+
+- RunPod cannot yet pull `ghcr.io/marvargo/private-ai-smalltest-real:latest` because anonymous GHCR manifest access returns HTTP 401 and the available GitHub token cannot change package visibility.
+- Real small-test inference, worker real task execution, Qwen, and Llama remain not run until image pull is fixed.
