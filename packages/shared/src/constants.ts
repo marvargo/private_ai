@@ -40,4 +40,4 @@ export const TASK_TYPE_MODEL_ROLE_DEFAULTS: Record<string, typeof MODEL_ROLES[nu
 };
 
 export const PERMISSION_LEVELS = ['chat_only','read_tools','development_write','infrastructure_operations','production_gated'] as const;
-export const TOOL_ACTION_CLASSIFICATIONS = ['safe_read','safe_development_write','cost_impacting_action','sensitive_data_action','production_action','destructive_action','external_sharing_action'] as const;
+export const TOOL_ACTION_CLASSIFICATIONS = ['chat_only','safe_read','safe_development_write','cost_impacting_action','sensitive_data_action','production_action','destructive_action','external_sharing_action'] as const;

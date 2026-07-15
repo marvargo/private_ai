@@ -10,6 +10,7 @@ describe('task executor', () => {
     expect(resolveTaskModelRole('app_development')).toBe('coding');
     expect(resolveTaskModelRole('supabase_schema')).toBe('database');
     expect(resolveTaskModelRole('research')).toBe('research');
+    expect(resolveTaskModelRole('small_test_validation')).toBe('qa');
   });
 
   it('runs queued tasks, saves logs, and marks completed', async () => {

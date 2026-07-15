@@ -68,6 +68,13 @@ describe('RunPod lifecycle orchestration', () => {
     expect(template.ports[0].containerPort).toBe(8000);
   });
 
+  it('attaches RunPod registry auth to private small-test images when configured', () => {
+    vi.stubEnv('RUNPOD_SMALL_TEST_MODE', 'real');
+    vi.stubEnv('RUNPOD_SMALL_TEST_CONTAINER_REGISTRY_AUTH_ID', 'registry-auth-1');
+    const template = createSmallTestPodTemplate();
+    expect(template.containerRegistryAuthId).toBe('registry-auth-1');
+  });
+
   it('lists, reads status, and reads logs with mocked provider calls', async () => {
     await expect(listRunPodPods({ listRunPodPods: async () => [mockPod] })).resolves.toEqual([mockPod]);
     await expect(getRunPodPodStatus('pod-1', { getRunPodPodStatus: async () => mockPod })).resolves.toEqual(mockPod);

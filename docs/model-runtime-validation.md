@@ -291,3 +291,39 @@ Status category: **blocked**. Production-ready: **no**.
 ### Gates intentionally not run
 
 Real small-test pod creation, direct model endpoint checks, API model validation, API chat, dashboard browser chat, worker real task execution, Qwen, and Llama were intentionally not run because the real image is not pullable by RunPod yet.
+
+## 2026-07-15 real small-test validation result
+
+Status categories:
+
+- implemented in code: RunPod pod creation now supports `containerRegistryAuthId` for private container images, and the real small-test template can read `RUNPOD_SMALL_TEST_CONTAINER_REGISTRY_AUTH_ID` / `RUNPOD_GHCR_REGISTRY_AUTH_ID`.
+- mock/platform validated: Supabase migrations 004 and 005 are live-applied and verified; RunPod API access can create, stop, and delete pods.
+- real small-test inference validated: yes.
+- Qwen validated: not run; blocked until the real small-test gate is reviewed and approved as complete.
+- Llama validated: not run; blocked until Qwen passes.
+- production-ready: no.
+
+Validation details:
+
+- SQL execution method used: Supabase MCP direct JSON-RPC over streamable HTTP.
+- 004 migration live-applied: yes; verified `locked_at`, `locked_by`, `lock_expires_at`, and `claim_next_ai_task` in the live database.
+- 005 migration live-applied: yes; verified `test / qa / wyndme-small-test-real` in the live `model_registry` table.
+- Docker small-test image built/pushed: yes.
+- GitHub Packages admin access: partial/missing; repository access works, but the available GitHub token cannot change package visibility.
+- GHCR public: no; anonymous manifest still returns HTTP 401.
+- Image pull path used: private GHCR pull through RunPod container registry auth.
+- RunPod image pull: passed; pod `09ug6aawclwflz` pulled `ghcr.io/marvargo/private-ai-smalltest-real:latest` and exposed port 8000.
+- Real small-test `/health`: passed.
+- Real small-test `/v1/models`: passed and returned `wyndme-small-test-real`.
+- Real small-test `/v1/chat/completions`: passed with non-empty text.
+- Real small-test streaming: passed with SSE chunks and `[DONE]`.
+- API `/model/validate`: passed, including model, chat, and streaming checks.
+- API `/chat/completions` with `modelRole=qa` and `taskType=small_test_validation`: passed and routed to `small-test-qa`, not Qwen.
+- Worker real task execution: passed after fixing small-test task classification/routing; task `task_7a97768d-81fb-4526-8110-7941df5f0da8` completed with task logs and audit rows persisted.
+- Supabase persistence row verification: passed for model registry, completed task, task logs, audit logs, session/create cost events, and RunPod lifecycle audit rows. Stop/delete cost-event persistence is implemented in code after this validation run and will be verified on the next live pod cycle.
+- Pod cleanup: passed; stop and delete were called, stop/delete audit rows were persisted, and `GET /runpod/pods` returned an empty list.
+
+Notes:
+
+- The model output is intentionally treated as validation success when non-empty and routed correctly; this TinyLlama validation runtime is not expected to obey exact-string prompts reliably.
+- Qwen and Llama were not started in this pass by instruction.

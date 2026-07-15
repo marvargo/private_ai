@@ -1,7 +1,7 @@
 import { AiTask, ConcreteModelRole } from '@wyndme/shared';
 import { privateChatCompletion } from './privateChat.js';
 import { claimNextQueuedTask, listTasks, updateTaskStatus, writeAudit, writeTaskLog } from './orchestrator.js';
-import { assertModelRuntimeHealthy } from './modelRuntimeHealth.js';
+import { assertModelRuntimeHealthy, checkModelRuntime } from './modelRuntimeHealth.js';
 import { selectModelForTask } from './modelRegistry.js';
 import { classifyTaskAction, evaluatePermission, permissionFromTools } from './permissionEngine.js';
 
@@ -12,6 +12,7 @@ export interface TaskExecutorOptions {
 const locks = new Set<string>();
 
 export function resolveTaskModelRole(taskType: string): ConcreteModelRole {
+  if (['small_test_validation', 'chat_validation'].includes(taskType)) return 'qa';
   if (['app_development', 'bug_fix'].includes(taskType)) return 'coding';
   if (['supabase_schema'].includes(taskType)) return 'database';
   if (['deployment_review'].includes(taskType)) return 'devops';
@@ -58,6 +59,7 @@ export async function runTask(taskId: string, options: TaskExecutorOptions = {})
       return { ok: false, status: decision.requiresApproval ? 'waiting_approval' : 'failed', reason: decision.reason, approval: decision.approval };
     }
     const modelRole = resolveTaskModelRole(task.taskType);
+    await checkModelRuntime(selectModelForTask(task.taskType, modelRole).model, { fetch: options.fetch });
     assertModelRuntimeHealthy(task.taskType, modelRole);
     await updateTaskStatus(task.id, 'running');
     await writeTaskLog(task.id, 'info', `Running task with ${modelRole}`);

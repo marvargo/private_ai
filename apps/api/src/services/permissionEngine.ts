@@ -12,6 +12,7 @@ const permissionRank: Record<PermissionLevel, number> = {
 };
 
 const requiredPermission: Record<ToolActionClassification, PermissionLevel> = {
+  chat_only: 'chat_only',
   safe_read: 'read_tools',
   safe_development_write: 'development_write',
   cost_impacting_action: 'infrastructure_operations',
@@ -73,6 +74,7 @@ export function permissionFromTools(tools: string[]): PermissionLevel {
 }
 
 export function classifyTaskAction(taskType: string): ToolActionClassification {
+  if (['small_test_validation', 'chat_validation'].includes(taskType)) return 'chat_only';
   if (['deployment_review'].includes(taskType)) return 'production_action';
   if (['app_development', 'bug_fix'].includes(taskType)) return 'safe_development_write';
   if (['supabase_schema'].includes(taskType)) return 'sensitive_data_action';

@@ -168,3 +168,26 @@ Still blocked:
 
 - RunPod cannot yet pull `ghcr.io/marvargo/private-ai-smalltest-real:latest` because anonymous GHCR manifest access returns HTTP 401 and the available GitHub token cannot change package visibility.
 - Real small-test inference, worker real task execution, Qwen, and Llama remain not run until image pull is fixed.
+
+## 2026-07-15 blocker status update
+
+The two immediate blockers are now resolved enough to complete the real small-test gate:
+
+- Supabase SQL execution path: unblocked through Supabase MCP direct JSON-RPC; migrations 004 and 005 are live-applied and verified.
+- RunPod image pull access: unblocked by creating RunPod container registry credentials for the private GHCR image and passing the registry auth ID into pod creation.
+
+Current readiness categories:
+
+- implemented in code: private RunPod registry auth support, small-test registry-auth template wiring, chat-only validation task classification, worker-side runtime health check before task execution, and stop/delete cost-event persistence.
+- mock/platform validated: RunPod API and Supabase persistence paths.
+- real small-test inference validated: yes.
+- Qwen validated: not run; remains blocked until explicitly proceeding after small-test.
+- Llama validated: not run; remains blocked until Qwen passes.
+- production-ready: no.
+
+Remaining blockers before production-ready:
+
+1. Review the real small-test validation artifacts and decide whether to proceed to Qwen validation.
+2. Build or make pullable the Qwen runtime image, then validate Qwen end-to-end.
+3. Only after Qwen passes, run the Llama 405B validation gate.
+4. Harden deployment operations, monitoring, production secrets rotation, and long-running worker/auto-stop scheduling.

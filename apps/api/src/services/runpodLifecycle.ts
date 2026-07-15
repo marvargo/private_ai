@@ -46,6 +46,13 @@ function modelFamilyForRole(role: ConcreteModelRole) {
   return ['coding', 'qa', 'database', 'devops'].includes(role) ? 'qwen' : 'llama';
 }
 
+function modelFamilyForSession(session: { modelId?: string; modelRole?: ConcreteModelRole }) {
+  const modelId = session.modelId?.toLowerCase() ?? '';
+  if (modelId.includes('tinyllama') || modelId.includes('small-test')) return 'test';
+  if (modelId.includes('qwen')) return 'qwen';
+  return modelFamilyForRole(session.modelRole ?? 'business_reasoning');
+}
+
 function modelFamilyForTemplate(template: RunPodPodTemplate) {
   return template.modelFamily ?? (template.name.includes('qwen') ? 'qwen' : template.name.includes('small-test') ? 'test' : 'llama');
 }
@@ -122,6 +129,7 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
       gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
       volumeGb: 20,
       containerImage: process.env.RUNPOD_SMALL_TEST_MOCK_IMAGE || 'ghcr.io/marvargo/private-ai-smalltest-mock:latest',
+      containerRegistryAuthId: process.env.RUNPOD_SMALL_TEST_CONTAINER_REGISTRY_AUTH_ID || process.env.RUNPOD_GHCR_REGISTRY_AUTH_ID,
       ports: [{ containerPort: 3000, protocol: 'http' }],
       env: {
         SERVED_MODEL_NAME: 'mock-gpt-thinking',
@@ -164,6 +172,7 @@ export function createSmallTestPodTemplate(): RunPodPodTemplate {
     gpuType: process.env.RUNPOD_SMALL_TEST_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
     volumeGb: 80,
     containerImage: process.env.RUNPOD_SMALL_TEST_REAL_IMAGE || 'ghcr.io/marvargo/private-ai-smalltest-real:latest',
+    containerRegistryAuthId: process.env.RUNPOD_SMALL_TEST_CONTAINER_REGISTRY_AUTH_ID || process.env.RUNPOD_GHCR_REGISTRY_AUTH_ID,
     ports: [{ containerPort: 8000, protocol: 'http' }],
     env: {
       MODEL_ID: process.env.RUNPOD_SMALL_TEST_MODEL_ID || 'TinyLlama/TinyLlama-1.1B-Chat-v1.0',
@@ -214,6 +223,21 @@ async function persistRuntime(session: Awaited<ReturnType<typeof createSession>>
   } catch (error) {
     await writeAudit({ actorType: 'system', action: 'runpod.runtime_persist_failed', targetType: 'model_runtime', targetId: session.id, status: 'failed', metadata: { message: error instanceof Error ? error.message : String(error) } });
   }
+}
+
+async function persistModelRegistryStatus(modelRole: ConcreteModelRole, modelFamily: 'llama' | 'qwen' | 'test' | 'future', status: 'starting' | 'healthy' | 'stopped' | 'failed', endpointUrl?: string) {
+  try {
+    updateModelRuntimeStatusByRoleFamily(modelRole, modelFamily, status, endpointUrl);
+  } catch {
+    // Supabase may still have the model registry row even when the in-memory registry does not.
+  }
+
+  if (!isSupabaseConfigured()) return;
+  await getSupabaseAdminClient()
+    .from('model_registry')
+    .update({ status, model_endpoint_url: endpointUrl, updated_at: new Date().toISOString() })
+    .eq('model_role', modelRole)
+    .eq('model_family', modelFamily);
 }
 
 export async function listRunPodPods(providers: RunPodLifecycleProviders = {}) {
@@ -290,7 +314,11 @@ export async function stopRunPodPod(podId: string, providers: RunPodLifecyclePro
   const pod = await (providers.stopRunPodPod ?? providerStopRunPodPod)(podId);
   const sessions = await listSessions();
   const session = sessions.find((item) => item.podId === podId);
-  if (session) await updateSessionStatus(session.id, 'stopped');
+  if (session) {
+    await updateSessionStatus(session.id, 'stopped');
+    await writeCostEvent({ sessionId: session.id, provider: 'runpod', resourceType: 'runpod_pod', gpuType: session.gpuType, gpuCount: session.gpuCount, estimatedHourlyCost: session.estimatedHourlyCost, eventType: 'runpod.stop' });
+    await persistModelRegistryStatus(session.modelRole ?? 'business_reasoning', modelFamilyForSession(session), 'stopped');
+  }
   await writeAudit({ actorType: 'admin', action: 'runpod.pod_stopped', targetType: 'pod', targetId: podId, status: 'ok', metadata: pod as unknown as Record<string, unknown> });
   return { ok: true, pod };
 }
@@ -304,7 +332,11 @@ export async function deleteRunPodPod(podId: string, approved = false, providers
   const result = await (providers.deleteRunPodPod ?? providerDeleteRunPodPod)(podId, true);
   const sessions = await listSessions();
   const session = sessions.find((item) => item.podId === podId);
-  if (session) await updateSessionStatus(session.id, 'stopped');
+  if (session) {
+    await updateSessionStatus(session.id, 'stopped');
+    await writeCostEvent({ sessionId: session.id, provider: 'runpod', resourceType: 'runpod_pod', gpuType: session.gpuType, gpuCount: session.gpuCount, estimatedHourlyCost: session.estimatedHourlyCost, eventType: 'runpod.delete' });
+    await persistModelRegistryStatus(session.modelRole ?? 'business_reasoning', modelFamilyForSession(session), 'stopped');
+  }
   await writeAudit({ actorType: 'admin', action: 'runpod.pod_deleted', targetType: 'pod', targetId: podId, status: 'ok' });
   return { ok: true, result };
 }

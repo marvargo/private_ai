@@ -3,6 +3,7 @@ import { getRunPodApiKey } from '../services/credentialResolver.js';
 import { RunPodGpuCatalogItem } from '../services/runpodCatalog.js';
 
 const ENDPOINT = 'https://api.runpod.io/graphql';
+const REST_ENDPOINT = 'https://rest.runpod.io/v1';
 
 export interface RunPodPodTemplate {
   name: string;
@@ -18,6 +19,7 @@ export interface RunPodPodTemplate {
   estimatedHourlyCost?: number;
   modelRole?: 'business_reasoning' | 'research' | 'architecture' | 'coding' | 'qa' | 'database' | 'devops';
   modelFamily?: 'llama' | 'qwen' | 'test';
+  containerRegistryAuthId?: string;
 }
 
 export interface RunPodPodStatus {
@@ -46,6 +48,41 @@ export async function runpodGraphql<T>(query: string, variables: Record<string, 
   const json = await res.json() as { data?: T; errors?: Array<{ message: string }> };
   if (json.errors?.length) throw new Error(json.errors.map((error) => error.message).join('; '));
   return json.data as T;
+}
+
+async function runpodRest<T>(path: string, init: RequestInit = {}) {
+  const apiKey = await getRunPodApiKey();
+  const res = await fetch(`${REST_ENDPOINT}${path}`, {
+    ...init,
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+      'user-agent': 'wyndme-private-ai-api',
+      ...init.headers,
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`RunPod REST HTTP ${res.status}: ${text.slice(0, 500)}`);
+  }
+  if (res.status === 204) return undefined as T;
+  return await res.json() as T;
+}
+
+export interface RunPodContainerRegistryAuth {
+  id: string;
+  name: string;
+}
+
+export async function listRunPodContainerRegistryAuths() {
+  return await runpodRest<RunPodContainerRegistryAuth[]>('/containerregistryauth');
+}
+
+export async function createRunPodContainerRegistryAuth(input: { name: string; username: string; password: string }) {
+  return await runpodRest<RunPodContainerRegistryAuth>('/containerregistryauth', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function endpointFromPorts(pod: any) {
@@ -109,6 +146,7 @@ export async function createRunPodPod(template: RunPodPodTemplate) {
         volumeMountPath: template.volumeMountPath,
         ports: template.ports.map((port) => `${port.containerPort}/${port.protocol}`).join(','),
         env: Object.entries(template.env).map(([key, value]) => ({ key, value })),
+        ...(template.containerRegistryAuthId ? { containerRegistryAuthId: template.containerRegistryAuthId } : {}),
         ...(template.startCommand ? { dockerArgs: template.startCommand } : {}),
       },
     },

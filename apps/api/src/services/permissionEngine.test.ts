@@ -7,6 +7,7 @@ describe('permission engine', () => {
     expect(permissionFromTools(['write_github_branch'])).toBe('development_write');
     expect(permissionFromTools(['runpod_start_stop'])).toBe('infrastructure_operations');
     expect(permissionFromTools(['production_gated'])).toBe('production_gated');
+    expect(classifyTaskAction('small_test_validation')).toBe('chat_only');
     expect(classifyTaskAction('app_development')).toBe('safe_development_write');
   });
 
