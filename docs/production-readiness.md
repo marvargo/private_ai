@@ -191,3 +191,27 @@ Remaining blockers before production-ready:
 2. Build or make pullable the Qwen runtime image, then validate Qwen end-to-end.
 3. Only after Qwen passes, run the Llama 405B validation gate.
 4. Harden deployment operations, monitoring, production secrets rotation, and long-running worker/auto-stop scheduling.
+
+## 2026-07-16 Qwen validation status
+
+Status category: **blocked**. Production-ready: **no**.
+
+The accepted real small-test gate allowed Qwen validation to start. Qwen validation is not complete.
+
+Resolved in this pass:
+
+- Added and pushed a Qwen Docker workflow for `ghcr.io/marvargo/qwen-coder-vllm:latest`.
+- Changed the Qwen runtime image to use the official vLLM OpenAI base image with WyndMe startup/health scripts.
+- Added Qwen RunPod template environment overrides for model ID, image, port, tensor parallel size, context length, GPU count, volume, registry auth, and validation cost.
+- Added runtime env injection for Hugging Face access without committing or printing secrets.
+- Added worker/task-executor support for chat-only coding validation and model-family logging.
+
+Live validation results:
+
+- Qwen image pull through RunPod private registry auth: **passed**.
+- Qwen pod create/stop/delete: **passed**.
+- Qwen endpoint health and `/v1/models`: **failed** for the tested 30B, 14B, and 7B Qwen Coder configurations.
+- Qwen inference, backend chat, dashboard chat, worker task, and successful Qwen persistence: **not passed**.
+- Llama 405B: **not run** because Qwen has not passed.
+
+Production remains blocked until Qwen reaches a healthy private vLLM endpoint, passes direct `/v1/models` and `/v1/chat/completions`, passes API validation, completes a worker task, and is cleaned up with persisted audit/cost rows.

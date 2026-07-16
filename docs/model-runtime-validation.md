@@ -327,3 +327,54 @@ Notes:
 
 - The model output is intentionally treated as validation success when non-empty and routed correctly; this TinyLlama validation runtime is not expected to obey exact-string prompts reliably.
 - Qwen and Llama were not started in this pass by instruction.
+
+## 2026-07-16 Qwen Coder validation attempt
+
+Status category: **blocked after live Qwen pod attempts**. Production-ready: **no**.
+
+The real small-test gate was accepted as passed, so this pass proceeded only to Qwen Coder validation. Llama was not started.
+
+### Qwen runtime selection
+
+- Preferred future target: `Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`.
+- Current live-validation target selected for cost/hardware practicality: `Qwen/Qwen2.5-Coder-7B-Instruct` after earlier attempts with `Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8` and `Qwen/Qwen2.5-Coder-14B-Instruct` did not become healthy.
+- Served model name: `wyndme-qwen-coder`.
+- Serving engine: vLLM OpenAI-compatible server.
+- GPU requested: 1x H100 SXM through the existing RunPod H100 profile.
+- Auto-stop: 1 hour for validation.
+- Emergency cleanup: stop/delete was executed after each failed attempt.
+
+### Image and startup attempts
+
+- Qwen image workflow added: `.github/workflows/docker-qwen-coder.yml`.
+- Custom image path: `ghcr.io/marvargo/qwen-coder-vllm:latest`.
+- Docker workflow result: built and pushed successfully.
+- RunPod image pull: passed for the custom image; the pod advanced to running and exposed the configured HTTP port.
+- Public fallback image tested: `vllm/vllm-openai:latest`.
+
+### Live pod attempts
+
+- `Qwen/Qwen3-Coder-30B-A3B-Instruct-FP8` with the custom image: pod was created and image pulled, but `/v1/models` did not become healthy; the runtime repeatedly restarted.
+- `Qwen/Qwen2.5-Coder-14B-Instruct` with the custom image: pod was created and exposed an endpoint, but `/v1/models` returned HTTP 404 and the runtime repeatedly restarted.
+- `Qwen/Qwen2.5-Coder-7B-Instruct` with the custom image: pod was created and exposed an endpoint, but `/v1/models` returned HTTP 404 and the runtime repeatedly restarted.
+- `Qwen/Qwen2.5-Coder-7B-Instruct` with `vllm/vllm-openai:latest` and explicit vLLM args: pod exited immediately.
+
+### Qwen gate results
+
+- Qwen image pull: **passed** for `ghcr.io/marvargo/qwen-coder-vllm:latest` through private RunPod registry auth.
+- Qwen pod creation: **passed**.
+- Qwen `/health`: **failed/not reached**.
+- Qwen `/v1/models`: **failed**; endpoint returned HTTP 404 or never became available.
+- Qwen `/v1/chat/completions`: **not run** because `/v1/models` never passed.
+- Qwen streaming: **not run**.
+- Qwen API `/model/validate`: **not run**.
+- Qwen backend chat: **not run**.
+- Qwen dashboard chat: **not run**.
+- Qwen worker task: **not run**.
+- Qwen Supabase persistence: **partial**; RunPod session/runtime attempts were recorded, but no successful Qwen task/inference rows exist.
+- Qwen cleanup: **passed**; `GET /runpod/pods` returned an empty list after stop/delete cleanup.
+- Llama: **not run** by instruction because Qwen did not pass.
+
+### Current Qwen blocker
+
+The Qwen runtime image is pullable, and RunPod pod create/stop/delete works. The remaining blocker is container/runtime startup: the vLLM server did not stay healthy or expose `/v1/models` for the tested Qwen Coder configurations. The current RunPod GraphQL logs query is unsupported in this API path, so the next required action is to add a supported RunPod log retrieval path or inspect the pod logs in the RunPod console, then fix the vLLM start command/image/model compatibility before retrying Qwen.
