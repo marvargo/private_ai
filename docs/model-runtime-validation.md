@@ -378,3 +378,54 @@ The real small-test gate was accepted as passed, so this pass proceeded only to 
 ### Current Qwen blocker
 
 The Qwen runtime image is pullable, and RunPod pod create/stop/delete works. The remaining blocker is container/runtime startup: the vLLM server did not stay healthy or expose `/v1/models` for the tested Qwen Coder configurations. The current RunPod GraphQL logs query is unsupported in this API path, so the next required action is to add a supported RunPod log retrieval path or inspect the pod logs in the RunPod console, then fix the vLLM start command/image/model compatibility before retrying Qwen.
+
+## 2026-07-16 Qwen Coder validation passed
+
+Status category: **Qwen validated**. Production-ready: **no** because Llama and production deployment hardening are still pending.
+
+### Corrected Qwen runtime image
+
+- Image path: `ghcr.io/marvargo/qwen-coder-vllm:latest`.
+- Pinned vLLM base image: `vllm/vllm-openai:v0.10.0`.
+- Effective Dockerfile entrypoint: `[]`.
+- Effective Dockerfile command: `["/opt/wyndme/supervisor.py"]`.
+- The inherited vLLM entrypoint was explicitly cleared so the WyndMe supervisor starts as the container process instead of treating `/opt/wyndme/start-qwen-vllm.sh` as an argument to the base image entrypoint.
+- Diagnostics supervisor port: `8002`.
+- OpenAI-compatible vLLM port: `8001`.
+
+### Validation runtime configuration
+
+- Validation model ID: `Qwen/Qwen2.5-Coder-7B-Instruct`.
+- Served model name: `wyndme-qwen-coder`.
+- Tensor parallel size: `1`.
+- Context length: `8192`.
+- GPU memory utilization: `0.85`.
+- GPU configuration: 1x NVIDIA H100 80GB/H100 SXM.
+- Volume: 150 GB.
+- Auto-stop window: 1 hour.
+- Future full-scale target preserved: `Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8`.
+
+### Live validation results
+
+- Hugging Face metadata/model access: passed for `Qwen/Qwen2.5-Coder-7B-Instruct`.
+- Qwen image pull: passed through RunPod private GHCR registry authentication.
+- Qwen pod creation: passed; pod `0xlzqczi8asamm`, session `session_bf72a819-0e97-4d6c-969d-1c9556e00608`.
+- Diagnostics `/health`: passed.
+- Diagnostics `/status`: passed and reported phase `running`, model ID, served model name, PID, and uptime.
+- Diagnostics `/logs?tail=80`: passed and returned sanitized startup logs with Python `3.12.11`, vLLM `0.10.1.dev1+gbcc0a3cbe`, `huggingface_hub 0.34.3`, H100 GPU inventory, Hugging Face model access verification, shard load, and vLLM startup progress.
+- Qwen `/v1/models`: passed and returned `wyndme-qwen-coder`.
+- Qwen `/v1/chat/completions`: passed with a TypeScript add-function/Vitest-test response.
+- Qwen streaming: passed with SSE chunks.
+- API `/model/validate`: passed for models, chat, and streaming.
+- Backend `/chat/completions` with `modelRole=coding` and `taskType=app_development`: passed and routed to `qwen-coder-primary` / `Qwen/Qwen2.5-Coder-7B-Instruct` / `wyndme-qwen-coder`.
+- Worker task execution: passed; task `task_ecfdc135-d68e-4031-9bf0-8494c5e886b1` completed, and logs showed `qwen/coding/wyndme-qwen-coder`.
+- Supabase persistence: passed for session, runtime, cost events, audit logs, completed task, task logs, and stop/delete cost/audit rows.
+- Cleanup: passed; stop and delete were called and `GET /runpod/pods` returned an empty list.
+
+### Dashboard status
+
+Dashboard browser chat with Qwen was **not run** in this pass because no browser-authenticated Supabase admin session was available in this non-interactive environment. The backend route used by the dashboard passed with the same Qwen coding payload and private routing metadata.
+
+### Next gate
+
+Qwen is now validated. Llama 405B may be validated next, but the platform is still not production-ready until Llama validation and production deployment hardening are complete.

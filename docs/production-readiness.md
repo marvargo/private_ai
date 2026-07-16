@@ -215,3 +215,23 @@ Live validation results:
 - Llama 405B: **not run** because Qwen has not passed.
 
 Production remains blocked until Qwen reaches a healthy private vLLM endpoint, passes direct `/v1/models` and `/v1/chat/completions`, passes API validation, completes a worker task, and is cleaned up with persisted audit/cost rows.
+
+## 2026-07-16 Qwen validation passed
+
+Status category: **Qwen validated**. Production-ready: **no**.
+
+Resolved:
+
+- Corrected Qwen container startup by pinning `vllm/vllm-openai:v0.10.0`, clearing the inherited base-image entrypoint, and running `/opt/wyndme/supervisor.py` as the effective command.
+- Added diagnostics port `8002` with `/health`, `/status`, and `/logs?tail=...` so startup failures are retrievable without relying on unsupported RunPod logs GraphQL fields.
+- Switched validation defaults to the practical `Qwen/Qwen2.5-Coder-7B-Instruct` route: 1x H100, tensor parallel 1, 8192 context, 150 GB volume, and 1-hour validation session.
+- Preserved `Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8` as the future full-scale Qwen target.
+- Validated Qwen `/v1/models`, `/v1/chat/completions`, streaming, API `/model/validate`, backend coding chat, worker task completion, Supabase persistence, and pod cleanup.
+
+Still pending before production-ready:
+
+1. Validate Llama 405B reasoning runtime end-to-end.
+2. Validate dashboard browser chat with a real authenticated admin session.
+3. Deploy API, dashboard, and worker to persistent production hosting.
+4. Configure always-on worker/auto-stop scheduling, production monitoring, error reporting, budget alerts, and incident runbooks.
+5. Rotate pasted setup credentials only after replacement credentials are installed and verified.
