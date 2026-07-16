@@ -12,6 +12,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: docker-qwen-coder-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-qwen-coder:
     runs-on: ubuntu-latest
