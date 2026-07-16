@@ -95,25 +95,38 @@ export function createLlama405BPodTemplate(): RunPodPodTemplate {
 }
 
 export function createQwenCoderPodTemplate(): RunPodPodTemplate {
+  const modelId = process.env.QWEN_CODER_MODEL_ID || 'Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8';
+  const servedModelName = process.env.QWEN_SERVED_MODEL_NAME || 'wyndme-qwen-coder';
+  const tensorParallelSize = process.env.QWEN_TENSOR_PARALLEL_SIZE || '4';
+  const maxModelLen = process.env.QWEN_CONTEXT_LENGTH || '262144';
+  const port = Number(process.env.RUNPOD_QWEN_PORT || 8001);
+  const image = process.env.RUNPOD_QWEN_CONTAINER_IMAGE || 'ghcr.io/wyndme/qwen-coder-vllm:latest';
+  const startCommand = process.env.RUNPOD_QWEN_START_COMMAND
+    || (image.includes('vllm/vllm-openai')
+      ? `--model ${modelId} --served-model-name ${servedModelName} --host 0.0.0.0 --port ${port} --tensor-parallel-size ${tensorParallelSize} --max-model-len ${maxModelLen} --gpu-memory-utilization ${process.env.QWEN_GPU_MEMORY_UTILIZATION || '0.90'}`
+      : '/opt/wyndme/start-qwen-vllm.sh');
+
   return {
     name: 'wyndme-qwen-coder-vllm',
     modelFamily: 'qwen',
-    gpuCount: 4,
+    gpuCount: Number(process.env.RUNPOD_QWEN_GPU_COUNT || 4),
     gpuType: env.RUNPOD_DEFAULT_GPU_TYPE,
-    volumeGb: 1000,
-    containerImage: 'ghcr.io/wyndme/qwen-coder-vllm:latest',
-    ports: [{ containerPort: 8001, protocol: 'http' }],
+    volumeGb: Number(process.env.RUNPOD_QWEN_VOLUME_GB || 1000),
+    containerImage: image,
+    containerRegistryAuthId: process.env.RUNPOD_QWEN_CONTAINER_REGISTRY_AUTH_ID || process.env.RUNPOD_GHCR_REGISTRY_AUTH_ID,
+    ports: [{ containerPort: port, protocol: 'http' }],
     env: {
-      MODEL_ID: 'Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8',
-      SERVED_MODEL_NAME: 'wyndme-qwen-coder',
-      TENSOR_PARALLEL_SIZE: '4',
-      MAX_MODEL_LEN: '262144',
-      GPU_MEMORY_UTILIZATION: '0.90',
+      MODEL_ID: modelId,
+      SERVED_MODEL_NAME: servedModelName,
+      TENSOR_PARALLEL_SIZE: tensorParallelSize,
+      MAX_MODEL_LEN: maxModelLen,
+      GPU_MEMORY_UTILIZATION: process.env.QWEN_GPU_MEMORY_UTILIZATION || '0.90',
+      ...(process.env.HF_TOKEN ? { HF_TOKEN: process.env.HF_TOKEN, HUGGING_FACE_HUB_TOKEN: process.env.HF_TOKEN } : {}),
     },
     volumeMountPath: '/workspace/models',
-    startCommand: '/opt/wyndme/start-qwen-vllm.sh',
+    startCommand,
     healthcheck: '/opt/wyndme/healthcheck.sh',
-    estimatedHourlyCost: 10.76,
+    estimatedHourlyCost: Number(process.env.QWEN_ESTIMATED_HOURLY_USD || 10.76),
     modelRole: 'coding',
   };
 }

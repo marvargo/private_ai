@@ -23,6 +23,16 @@ describe('task executor', () => {
     expect(logs.some((log) => log.message.includes('Task completed'))).toBe(true);
   });
 
+  it('allows chat-only coding validation tasks without write permissions', async () => {
+    const model = listModelRegistry().find((entry) => entry.modelRole === 'coding')!;
+    updateModelRuntimeStatus(model.id, 'healthy', 'http://private-qwen.test');
+    const task = await createTask({ title: 'Describe code', description: 'Return code only in chat', taskType: 'app_development', priority: 'normal', riskLevel: 'low', allowedTools: ['chat_only'], requiresApproval: false, modelRole: 'coding' });
+    const result = await runTask(task.id, { fetch: fakeFetch });
+    expect(result.ok).toBe(true);
+    const logs = await listTaskLogs(task.id);
+    expect(logs.some((log) => log.message.includes('qwen/coding'))).toBe(true);
+  });
+
   it('pauses tasks that require approval', async () => {
     const task = await createTask({ title: 'Prod action', description: 'Needs approval', taskType: 'deployment_review', priority: 'high', riskLevel: 'high', allowedTools: ['production_gated'], requiresApproval: true, modelRole: 'auto' });
     const result = await runTask(task.id, { fetch: fakeFetch });

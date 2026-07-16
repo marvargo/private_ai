@@ -52,17 +52,26 @@ export async function runTask(taskId: string, options: TaskExecutorOptions = {})
       await writeTaskLog(task.id, 'error', permission.reason ?? 'Permission denied');
       return { ok: false, reason: permission.reason };
     }
-    const decision = await evaluatePermission({ permissionLevel: permissionFromTools(task.allowedTools), classification: classifyTaskAction(task.taskType), action: `task.${task.taskType}`, riskLevel: task.riskLevel });
+    const classification = task.allowedTools.includes('chat_only') && task.allowedTools.length === 1
+      ? 'chat_only'
+      : classifyTaskAction(task.taskType);
+    const decision = await evaluatePermission({ permissionLevel: permissionFromTools(task.allowedTools), classification, action: `task.${task.taskType}`, riskLevel: task.riskLevel });
     if (!decision.allowed) {
       await updateTaskStatus(task.id, decision.requiresApproval ? 'waiting_approval' : 'failed', decision.reason);
       await writeTaskLog(task.id, decision.requiresApproval ? 'warn' : 'error', decision.reason ?? 'Permission denied', decision.approval ? { approvalId: decision.approval.id } : undefined);
       return { ok: false, status: decision.requiresApproval ? 'waiting_approval' : 'failed', reason: decision.reason, approval: decision.approval };
     }
     const modelRole = resolveTaskModelRole(task.taskType);
-    await checkModelRuntime(selectModelForTask(task.taskType, modelRole).model, { fetch: options.fetch });
+    const selection = selectModelForTask(task.taskType, modelRole);
+    await checkModelRuntime(selection.model, { fetch: options.fetch });
     assertModelRuntimeHealthy(task.taskType, modelRole);
     await updateTaskStatus(task.id, 'running');
-    await writeTaskLog(task.id, 'info', `Running task with ${modelRole}`);
+    await writeTaskLog(task.id, 'info', `Running task with ${selection.model.modelFamily}/${modelRole}/${selection.model.servedModelName}`, {
+      modelFamily: selection.model.modelFamily,
+      modelRole,
+      servedModelName: selection.model.servedModelName,
+      modelId: selection.model.id,
+    });
     const completion = await privateChatCompletion({ messages: [{ role: 'user', content: taskPrompt(task) }], taskType: task.taskType, modelRole, fetch: options.fetch });
     const output = completion.choices?.[0]?.message?.content ?? 'Task completed.';
     await updateTaskStatus(task.id, 'completed', output);
