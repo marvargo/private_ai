@@ -105,7 +105,7 @@ export function createQwenCoderPodTemplate(): RunPodPodTemplate {
   const startCommand = process.env.RUNPOD_QWEN_START_COMMAND
     || (image.includes('vllm/vllm-openai')
       ? `--model ${modelId} --served-model-name ${servedModelName} --host 0.0.0.0 --port ${port} --tensor-parallel-size ${tensorParallelSize} --max-model-len ${maxModelLen} --gpu-memory-utilization ${process.env.QWEN_GPU_MEMORY_UTILIZATION || '0.85'} --trust-remote-code`
-      : '/opt/wyndme/start-qwen-vllm.sh');
+      : '/opt/wyndme/supervisor.py');
 
   return {
     name: 'wyndme-qwen-coder-vllm',
