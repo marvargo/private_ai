@@ -27,7 +27,24 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - name: Build local validation image
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/docker/qwencoder
+          load: true
+          tags: qwen-coder-vllm:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Inspect effective entrypoint and command
+        run: |
+          docker inspect qwen-coder-vllm:ci --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}}'
+          test "$(docker inspect qwen-coder-vllm:ci --format '{{json .Config.Entrypoint}}')" = 'null'
+          test "$(docker inspect qwen-coder-vllm:ci --format '{{json .Config.Cmd}}')" = '["/opt/wyndme/supervisor.py"]'
+      - name: Smoke test startup dependencies without downloading the model
+        run: |
+          docker run --rm --entrypoint bash qwen-coder-vllm:ci -lc 'bash -n /opt/wyndme/start-qwen-vllm.sh && python3 -c "import vllm; print(vllm.__version__)" && python3 -c "import huggingface_hub; print(huggingface_hub.__version__)"'
+      - name: Build and push runtime image
+        uses: docker/build-push-action@v6
         with:
           context: infra/docker/qwencoder
           push: true

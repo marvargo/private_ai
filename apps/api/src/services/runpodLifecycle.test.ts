@@ -28,9 +28,13 @@ describe('RunPod lifecycle orchestration', () => {
     expect(llama.gpuCount).toBe(8);
     expect(llama.modelFamily).toBe('llama');
     expect(llama.env.MODEL_ID).toContain('405B');
-    expect(qwen.gpuCount).toBe(4);
+    expect(qwen.gpuCount).toBe(1);
     expect(qwen.modelFamily).toBe('qwen');
-    expect(qwen.env.MODEL_ID).toContain('Qwen');
+    expect(qwen.env.MODEL_ID).toBe('Qwen/Qwen2.5-Coder-7B-Instruct');
+    expect(qwen.ports).toEqual([
+      { containerPort: 8001, protocol: 'http' },
+      { containerPort: 8002, protocol: 'http' },
+    ]);
     expect(test.gpuCount).toBe(1);
     expect(test.modelFamily).toBe('test');
     expect(JSON.stringify([llama, qwen, test])).not.toContain('RUNPOD_API_KEY');
