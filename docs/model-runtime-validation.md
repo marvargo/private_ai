@@ -438,7 +438,7 @@ Status category: **Llama preflight hardening implemented**. Production-ready: **
 
 - Image path: `ghcr.io/marvargo/llama405b-vllm:latest`.
 - Serving base image: pinned to `vllm/vllm-openai:v0.10.0`; the image no longer uses an unpinned `latest` base.
-- Effective entrypoint: `[]`.
+- Effective entrypoint: `null` (Dockerfile clears the inherited vLLM entrypoint with `ENTRYPOINT []`).
 - Effective command: `["/opt/wyndme/supervisor.py"]`.
 - OpenAI-compatible model port: `8000`.
 - Diagnostics supervisor port: `8002`.

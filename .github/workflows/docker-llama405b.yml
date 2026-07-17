@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           metadata=$(docker inspect llama405b-vllm:ci --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}}')
           echo "$metadata"
-          test "$metadata" = 'Entrypoint=[] Cmd=["/opt/wyndme/supervisor.py"]'
+          test "$metadata" = 'Entrypoint=null Cmd=["/opt/wyndme/supervisor.py"]'
           docker run --rm --entrypoint bash llama405b-vllm:ci -n /opt/wyndme/start-vllm.sh
           docker run --rm --entrypoint python3 llama405b-vllm:ci -c 'import vllm; import huggingface_hub; print("imports ok")'
       - name: Push runtime image after startup checks pass
