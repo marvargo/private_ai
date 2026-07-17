@@ -6,7 +6,7 @@ The Llama 405B runtime is the full-scale reasoning target. Do not mark it valida
 
 - Image: `ghcr.io/marvargo/llama405b-vllm:latest`
 - Base image: pinned `vllm/vllm-openai:v0.10.0`
-- Effective entrypoint: `[]`
+- Effective entrypoint: `null` (Dockerfile clears the inherited vLLM entrypoint with `ENTRYPOINT []`)
 - Effective command: `["/opt/wyndme/supervisor.py"]`
 - Inference port: `8000`
 - Diagnostics port: `8002`
