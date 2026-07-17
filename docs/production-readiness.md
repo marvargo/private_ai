@@ -259,3 +259,9 @@ The platform remains **not production-ready**. Real small-test and Qwen validati
 5. Validate Llama direct inference, streaming, API `/model/validate`, backend routing, worker task execution, Supabase persistence, and cleanup.
 6. Complete browser-authenticated dashboard validation for Qwen and Llama.
 7. Deploy and validate the API, dashboard, and worker with monitoring, alerts, auto-stop, and emergency-stop in production.
+
+## 2026-07-17 Llama launch blocker
+
+Llama 405B is **not validated**. The hardened Llama image workflow and CI passed, Hugging Face gated model access passed, and an 8x H200 profile was selected for a four-hour maximum validation estimate of `$114.88`. The first Llama pod was created but exited before diagnostics became reachable; cleanup completed and no pod remained.
+
+The exact blocker for retry is RunPod billing capacity: a follow-up image-pull probe was rejected with `INSUFFICIENT_BALANCE`. Add RunPod funds before retrying Llama image-pull diagnostics, 405B model load, inference validation, worker validation, dashboard validation, and production deployment hardening.

@@ -475,3 +475,33 @@ Status category: **Llama preflight hardening implemented**. Production-ready: **
 - Qwen dashboard browser: still pending browser-authenticated validation.
 - Llama dashboard browser: pending Llama runtime health.
 - Cleanup: pending Llama pod creation.
+
+## 2026-07-17 Llama 405B launch attempt
+
+Status category: **Llama not validated**. Production-ready: **no**.
+
+### Preflight results
+
+- Llama image path: `ghcr.io/marvargo/llama405b-vllm:latest`.
+- Docker Llama workflow: passed at `https://github.com/marvargo/private_ai/actions/runs/29552142198`.
+- CI workflow: passed at `https://github.com/marvargo/private_ai/actions/runs/29552142117`.
+- HF gated access: passed for `meta-llama/Meta-Llama-3.1-405B-Instruct`.
+- RunPod GPU profile selected: `NVIDIA H200` with 8 GPUs, 1128 GB total VRAM.
+- Estimated hourly cost: `$28.72`; estimated four-hour maximum validation cost: `$114.88`.
+- Private GHCR registry auth path: configured with existing RunPod registry auth.
+
+### Launch result
+
+- Pod creation: passed for pod `7tyg4l1uk5fh3l`, session `session_a552ac9d-3603-4d54-baaa-807fddceceb1`.
+- Diagnostics `/status`: failed/not reached; the pod exited before the diagnostics supervisor became reachable.
+- `/v1/models`: failed/not reached.
+- `/v1/chat/completions`: not run because `/v1/models` did not pass.
+- Streaming: not run.
+- API `/model/validate`: not run.
+- Backend chat: not run.
+- Llama worker task: not run.
+- Cleanup: stop/delete attempted; `GET /runpod/pods` returned an empty list afterwards.
+
+### Exact current blocker
+
+A follow-up low-cost image-pull probe using the same `ghcr.io/marvargo/llama405b-vllm:latest` image and existing private registry auth was rejected by RunPod with `INSUFFICIENT_BALANCE` (`Your account balance is too low to rent a pod`). Because the account balance is now below RunPod's required threshold, I cannot safely retry the Llama image-pull/runtime diagnostics or run the 405B load until funds are added. This is not a RunPod API permission problem; RunPod API access and pod lifecycle calls worked.
