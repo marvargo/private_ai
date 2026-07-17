@@ -429,3 +429,49 @@ Dashboard browser chat with Qwen was **not run** in this pass because no browser
 ### Next gate
 
 Qwen is now validated. Llama 405B may be validated next, but the platform is still not production-ready until Llama validation and production deployment hardening are complete.
+
+## 2026-07-17 Llama 405B preflight image hardening
+
+Status category: **Llama preflight hardening implemented**. Production-ready: **no** until the 405B runtime is live-loaded, inference passes, dashboard validation passes, and production deployment hardening is complete.
+
+### Llama runtime image changes
+
+- Image path: `ghcr.io/marvargo/llama405b-vllm:latest`.
+- Serving base image: pinned to `vllm/vllm-openai:v0.10.0`; the image no longer uses an unpinned `latest` base.
+- Effective entrypoint: `[]`.
+- Effective command: `["/opt/wyndme/supervisor.py"]`.
+- OpenAI-compatible model port: `8000`.
+- Diagnostics supervisor port: `8002`.
+- Diagnostics routes: `GET /health`, `GET /status`, and `GET /logs?tail=200`.
+- The supervisor reports sanitized model ID, served model name, serving engine, loading phase, child process state/exit code, GPU inventory summary, tensor parallel size, max context, quantization, and recent startup logs.
+- Startup logs are written to `/workspace/logs/llama-vllm.log`; token-like values and Authorization headers are redacted from diagnostics responses.
+
+### Llama validation target
+
+- Target model ID: `meta-llama/Meta-Llama-3.1-405B-Instruct`.
+- Served model name: `wyndme-llama-405b`.
+- Tensor parallel size: `8`.
+- Context length: `32768`.
+- Quantization default: `fp8`.
+- GPU memory utilization default: `0.88`.
+- Required RunPod profile: 8 GPUs with sufficient VRAM, preferably 8x H100 80GB, 8x H200, or 8x B200.
+- Validation maximum duration: four hours.
+
+### Current gate state
+
+- Real small-test: accepted as passed.
+- Qwen Coder: accepted as passed.
+- Llama image hardening: implemented in code.
+- Llama image workflow: added for GHCR publication and Dockerfile smoke checks.
+- Llama image pull: not yet verified after this hardening commit.
+- HF gated access: not yet re-verified after this hardening commit.
+- Llama pod creation: not run until image delivery, HF access, GPU inventory, budget, emergency stop, and approval preflight pass.
+- Llama `/v1/models`: not run.
+- Llama `/v1/chat/completions`: not run.
+- Llama streaming: not run.
+- API `/model/validate`: not run for Llama.
+- Llama backend chat: not run.
+- Llama worker task: not run.
+- Qwen dashboard browser: still pending browser-authenticated validation.
+- Llama dashboard browser: pending Llama runtime health.
+- Cleanup: pending Llama pod creation.

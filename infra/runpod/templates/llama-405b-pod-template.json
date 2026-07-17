@@ -1,1 +1,25 @@
-{"name":"wyndme-llama-405b-vllm","gpuCount":8,"gpuType":"NVIDIA H100 80GB HBM3","volumeGb":2000,"containerImage":"ghcr.io/wyndme/llama405b-vllm:latest","ports":[{"containerPort":8000,"protocol":"http"}],"env":{"MODEL_ID":"meta-llama/Meta-Llama-3.1-405B-Instruct","MODEL_QUANTIZATION":"fp8","TENSOR_PARALLEL_SIZE":"8","MAX_MODEL_LEN":"32768","GPU_MEMORY_UTILIZATION":"0.90"},"volumeMountPath":"/workspace/models","startCommand":"/opt/wyndme/start-vllm.sh","healthcheck":"/opt/wyndme/healthcheck.sh"}
+{
+  "name": "wyndme-llama-405b-vllm",
+  "modelFamily": "llama",
+  "gpuCount": 8,
+  "gpuType": "NVIDIA H100 80GB HBM3",
+  "volumeGb": 2000,
+  "containerImage": "ghcr.io/marvargo/llama405b-vllm:latest",
+  "ports": [
+    { "containerPort": 8000, "protocol": "http" },
+    { "containerPort": 8002, "protocol": "http" }
+  ],
+  "env": {
+    "MODEL_ID": "meta-llama/Meta-Llama-3.1-405B-Instruct",
+    "SERVED_MODEL_NAME": "wyndme-llama-405b",
+    "MODEL_QUANTIZATION": "fp8",
+    "TENSOR_PARALLEL_SIZE": "8",
+    "MAX_MODEL_LEN": "32768",
+    "GPU_MEMORY_UTILIZATION": "0.88",
+    "PORT": "8000",
+    "DIAGNOSTICS_PORT": "8002"
+  },
+  "volumeMountPath": "/workspace/models",
+  "startCommand": "/opt/wyndme/supervisor.py",
+  "healthcheck": "/opt/wyndme/healthcheck.sh"
+}

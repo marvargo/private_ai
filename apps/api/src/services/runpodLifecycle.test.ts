@@ -28,6 +28,12 @@ describe('RunPod lifecycle orchestration', () => {
     expect(llama.gpuCount).toBe(8);
     expect(llama.modelFamily).toBe('llama');
     expect(llama.env.MODEL_ID).toContain('405B');
+    expect(llama.containerImage).toBe('ghcr.io/marvargo/llama405b-vllm:latest');
+    expect(llama.ports).toEqual([
+      { containerPort: 8000, protocol: 'http' },
+      { containerPort: 8002, protocol: 'http' },
+    ]);
+    expect(llama.startCommand).toBe('/opt/wyndme/supervisor.py');
     expect(qwen.gpuCount).toBe(1);
     expect(qwen.modelFamily).toBe('qwen');
     expect(qwen.env.MODEL_ID).toBe('Qwen/Qwen2.5-Coder-7B-Instruct');

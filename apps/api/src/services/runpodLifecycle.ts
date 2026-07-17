@@ -71,25 +71,47 @@ function runtimeStatusFromPod(status?: string): 'starting' | 'healthy' | 'stoppe
 }
 
 export function createLlama405BPodTemplate(): RunPodPodTemplate {
+  const modelId = process.env.LLAMA_MODEL_ID || 'meta-llama/Meta-Llama-3.1-405B-Instruct';
+  const servedModelName = process.env.LLAMA_SERVED_MODEL_NAME || 'wyndme-llama-405b';
+  const tensorParallelSize = process.env.LLAMA_TENSOR_PARALLEL_SIZE || '8';
+  const maxModelLen = process.env.LLAMA_CONTEXT_LENGTH || '32768';
+  const port = Number(process.env.RUNPOD_LLAMA_PORT || 8000);
+  const diagnosticsPort = Number(process.env.RUNPOD_LLAMA_DIAGNOSTICS_PORT || 8002);
+  const image = process.env.RUNPOD_LLAMA_CONTAINER_IMAGE
+    || process.env.RUNPOD_DEFAULT_CONTAINER_IMAGE
+    || 'ghcr.io/marvargo/llama405b-vllm:latest';
+  const startCommand = process.env.RUNPOD_LLAMA_START_COMMAND
+    || (image.includes('vllm/vllm-openai')
+      ? `--model ${modelId} --served-model-name ${servedModelName} --host 0.0.0.0 --port ${port} --tensor-parallel-size ${tensorParallelSize} --max-model-len ${maxModelLen} --gpu-memory-utilization ${process.env.LLAMA_GPU_MEMORY_UTILIZATION || '0.88'} --trust-remote-code`
+      : '/opt/wyndme/supervisor.py');
+
   return {
     name: 'wyndme-llama-405b-vllm',
     modelFamily: 'llama',
-    gpuCount: 8,
-    gpuType: env.RUNPOD_DEFAULT_GPU_TYPE,
-    volumeGb: env.RUNPOD_DEFAULT_VOLUME_GB,
-    containerImage: process.env.RUNPOD_DEFAULT_CONTAINER_IMAGE || 'ghcr.io/wyndme/llama405b-vllm:latest',
-    ports: [{ containerPort: 8000, protocol: 'http' }],
+    gpuCount: Number(process.env.RUNPOD_LLAMA_GPU_COUNT || 8),
+    gpuType: process.env.RUNPOD_LLAMA_GPU_TYPE || env.RUNPOD_DEFAULT_GPU_TYPE,
+    volumeGb: Number(process.env.RUNPOD_LLAMA_VOLUME_GB || env.RUNPOD_DEFAULT_VOLUME_GB || 2000),
+    containerImage: image,
+    containerRegistryAuthId: process.env.RUNPOD_LLAMA_CONTAINER_REGISTRY_AUTH_ID || process.env.RUNPOD_GHCR_REGISTRY_AUTH_ID,
+    ports: [
+      { containerPort: port, protocol: 'http' },
+      { containerPort: diagnosticsPort, protocol: 'http' },
+    ],
     env: {
-      MODEL_ID: 'meta-llama/Meta-Llama-3.1-405B-Instruct',
-      MODEL_QUANTIZATION: 'fp8',
-      TENSOR_PARALLEL_SIZE: '8',
-      MAX_MODEL_LEN: '32768',
-      GPU_MEMORY_UTILIZATION: '0.90',
+      MODEL_ID: modelId,
+      SERVED_MODEL_NAME: servedModelName,
+      MODEL_QUANTIZATION: process.env.LLAMA_MODEL_QUANTIZATION || 'fp8',
+      TENSOR_PARALLEL_SIZE: tensorParallelSize,
+      MAX_MODEL_LEN: maxModelLen,
+      GPU_MEMORY_UTILIZATION: process.env.LLAMA_GPU_MEMORY_UTILIZATION || '0.88',
+      PORT: String(port),
+      DIAGNOSTICS_PORT: String(diagnosticsPort),
+      ...(process.env.HF_TOKEN ? { HF_TOKEN: process.env.HF_TOKEN, HUGGING_FACE_HUB_TOKEN: process.env.HF_TOKEN } : {}),
     },
     volumeMountPath: '/workspace/models',
-    startCommand: '/opt/wyndme/start-vllm.sh',
+    startCommand,
     healthcheck: '/opt/wyndme/healthcheck.sh',
-    estimatedHourlyCost: 21.52,
+    estimatedHourlyCost: Number(process.env.LLAMA_ESTIMATED_HOURLY_USD || 21.52),
     modelRole: 'business_reasoning',
   };
 }

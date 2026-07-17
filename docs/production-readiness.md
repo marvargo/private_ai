@@ -235,3 +235,27 @@ Still pending before production-ready:
 3. Deploy API, dashboard, and worker to persistent production hosting.
 4. Configure always-on worker/auto-stop scheduling, production monitoring, error reporting, budget alerts, and incident runbooks.
 5. Rotate pasted setup credentials only after replacement credentials are installed and verified.
+
+## 2026-07-17 Llama 405B readiness update
+
+The platform remains **not production-ready**. Real small-test and Qwen validation are accepted as passed, but Llama 405B inference, browser-authenticated dashboard validation, and production deployment hardening are still pending.
+
+### Implemented in code
+
+- Llama 405B runtime image switched to `ghcr.io/marvargo/llama405b-vllm:latest`.
+- Llama serving base image is pinned to `vllm/vllm-openai:v0.10.0`.
+- The inherited vLLM entrypoint is cleared and the effective command is the WyndMe diagnostics supervisor.
+- Llama runtime exposes port `8000` for OpenAI-compatible inference and port `8002` for diagnostics.
+- Llama diagnostics expose `/health`, `/status`, and `/logs?tail=200`, with redaction for token-like values.
+- Llama RunPod templates now pass model/runtime settings through environment variables and use the existing private GHCR registry-auth path.
+- A Llama Docker workflow builds and publishes `ghcr.io/marvargo/llama405b-vllm:latest` only after Dockerfile smoke checks pass.
+
+### Remaining production blockers
+
+1. Publish and verify the hardened Llama image can be pulled by RunPod.
+2. Verify Hugging Face gated access to `meta-llama/Meta-Llama-3.1-405B-Instruct` without printing secrets.
+3. Verify an 8-GPU RunPod profile with enough VRAM and disk is available and within budget.
+4. Start Llama 405B only after preflight passes; poll diagnostics and `/v1/models` rather than relying on RunPod `RUNNING` alone.
+5. Validate Llama direct inference, streaming, API `/model/validate`, backend routing, worker task execution, Supabase persistence, and cleanup.
+6. Complete browser-authenticated dashboard validation for Qwen and Llama.
+7. Deploy and validate the API, dashboard, and worker with monitoring, alerts, auto-stop, and emergency-stop in production.
