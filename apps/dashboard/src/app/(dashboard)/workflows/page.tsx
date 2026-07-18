@@ -1,3 +1,5 @@
+import { WorkspaceResourcePage } from '../../../components/WorkspaceResourcePage';
+
 export default function WorkflowsPage() {
-  return <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8"><h1 className="text-3xl font-bold">Workflows</h1><p className="text-slate-400">Design automations with triggers, actions, approvals, schedules, retries, and execution history.</p></main>;
+  return <WorkspaceResourcePage title="Workflows" endpoint="/workflows" createLabel="New workflow" defaultCategory="automation" description="Design project automations using natural language or a visual builder with triggers, actions, conditions, loops, approvals, schedules, execution history, and retry policy metadata." featureGroups={["Visual Builder", "Natural Language Builder", "Triggers", "Actions", "Conditions", "Approvals", "Schedules", "Execution History"]} />;
 }

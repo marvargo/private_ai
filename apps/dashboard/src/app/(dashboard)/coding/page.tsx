@@ -1,3 +1,5 @@
+import { WorkspaceResourcePage } from '../../../components/WorkspaceResourcePage';
+
 export default function CodingPage() {
-  return <main className="mx-auto max-w-6xl space-y-6 p-4 md:p-8"><h1 className="text-3xl font-bold">Coding</h1><p className="text-slate-400">Build software projects with files, preview, history, and deployment workflows. The platform chooses the right private execution path automatically.</p></main>;
+  return <WorkspaceResourcePage title="Coding" endpoint="/coding/projects" createLabel="New software workspace" defaultCategory="software" description="Build software projects with files, editor planning, preview, build, deploy, source control, terminal output, environment variables, and project history. The platform chooses the private execution path automatically." featureGroups={["Projects", "File Tree", "Editor", "Preview", "Build", "Deploy", "Source Control", "Project History"]} />;
 }

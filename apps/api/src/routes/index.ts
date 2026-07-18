@@ -22,6 +22,7 @@ import { getModelRuntimeLogs, getModelRuntimeStatus, pollModelRuntimes, restartM
 import { addConversationMessage, createConversation, deleteConversation, getConversation, listConversationMessages, listConversations, updateConversation } from '../services/conversations.js';
 import { createProject, ensureDefaultProject, listProjects } from '../services/projects.js';
 import { privateChatCompletion, privateChatCompletionStream } from '../services/privateChat.js';
+import { createWorkspaceRecord, listWorkspaceRecords, usageSummary } from '../services/workspaces.js';
 import { cancelTask, retryTask, runTask } from '../services/taskExecutor.js';
 import { connectGitHubRepo, createGitHubBranch, createOrUpdateGitHubFile, listGitHubPullRequests, listGitHubRepos, openGitHubPullRequest, readGitHubActionsStatus, readGitHubFile, readGitHubTree, testGitHubToken } from '../services/githubService.js';
 import { applyMigrationDraft, connectSupabaseProject, generateMigrationDraft, listSupabaseProjects, readSupabaseProjectSchema, testSupabaseManagementConnection } from '../services/supabaseProjectService.js';
@@ -224,6 +225,15 @@ export async function registerRoutes(app: FastifyInstance) {
     const body = z.object({ conversationId: z.string().optional(), projectId: z.string().optional(), messages: z.array(z.object({ role: z.string(), content: z.string() })), temperature: z.number().optional(), max_tokens: z.number().optional(), taskType: z.string().default('general_chat'), capability: z.string().default('chat'), category: z.string().default('general'), systemPrompt: z.string().optional() }).parse(req.body);
     return privateChatCompletionStream({ ...body, modelRole: 'auto', userId: req.authUser?.userId });
   });
+  app.get('/studio/assets', async (req) => { const query = z.object({ projectId: z.string().optional() }).parse(req.query); return listWorkspaceRecords('studio_asset', req.authUser?.userId, query.projectId); });
+  app.post('/studio/assets', async (req) => createWorkspaceRecord({ ...z.object({ projectId: z.string().optional(), name: z.string().min(1), category: z.string().default('image'), metadata: z.record(z.unknown()).optional() }).parse(req.body ?? {}), ownerId: req.authUser?.userId, kind: 'studio_asset', capability: 'studio' }));
+  app.get('/coding/projects', async (req) => { const query = z.object({ projectId: z.string().optional() }).parse(req.query); return listWorkspaceRecords('code_project', req.authUser?.userId, query.projectId); });
+  app.post('/coding/projects', async (req) => createWorkspaceRecord({ ...z.object({ projectId: z.string().optional(), name: z.string().min(1), metadata: z.record(z.unknown()).optional() }).parse(req.body ?? {}), ownerId: req.authUser?.userId, kind: 'code_project', capability: 'coding', category: 'software' }));
+  app.get('/workflows', async (req) => { const query = z.object({ projectId: z.string().optional() }).parse(req.query); return listWorkspaceRecords('workflow', req.authUser?.userId, query.projectId); });
+  app.post('/workflows', async (req) => createWorkspaceRecord({ ...z.object({ projectId: z.string().optional(), name: z.string().min(1), metadata: z.record(z.unknown()).optional() }).parse(req.body ?? {}), ownerId: req.authUser?.userId, kind: 'workflow', capability: 'workflow', category: 'automation' }));
+  app.get('/integrations', async (req) => { const query = z.object({ projectId: z.string().optional() }).parse(req.query); return listWorkspaceRecords('integration', req.authUser?.userId, query.projectId); });
+  app.post('/integrations', async (req) => createWorkspaceRecord({ ...z.object({ projectId: z.string().optional(), name: z.string().min(1), category: z.string().default('native'), metadata: z.record(z.unknown()).optional() }).parse(req.body ?? {}), ownerId: req.authUser?.userId, kind: 'integration', capability: 'integration' }));
+  app.get('/analytics/usage-summary', async (req) => { const query = z.object({ projectId: z.string().optional() }).parse(req.query); return usageSummary(req.authUser?.userId, query.projectId); });
   app.get('/projects', async (req) => listProjects(req.authUser?.userId));
   app.post('/projects', async (req) => createProject({ ...z.object({ name: z.string().min(1) }).parse(req.body ?? {}), ownerId: req.authUser?.userId }));
   app.post('/projects/default', async (req) => ensureDefaultProject(req.authUser?.userId));

@@ -12,6 +12,11 @@ const USER_ROUTES = [
   '/conversations',
   '/projects',
   '/me',
+  '/studio',
+  '/coding',
+  '/workflows',
+  '/integrations',
+  '/analytics',
 ];
 
 const ADMIN_ROUTE_PREFIXES = [
