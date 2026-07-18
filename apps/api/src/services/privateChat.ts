@@ -5,6 +5,10 @@ import { writeAudit } from './orchestrator.js';
 
 export interface ChatCompletionInput {
   conversationId?: string;
+  projectId?: string;
+  userId?: string;
+  capability?: string;
+  category?: string;
   messages: Array<{ role: string; content: string }>;
   modelRole?: ModelRole;
   taskType?: string;
@@ -19,21 +23,22 @@ function assistantText(payload: any) {
 }
 
 export async function privateChatCompletion(input: ChatCompletionInput) {
-  const conversation = input.conversationId ? await getConversation(input.conversationId) : await createConversation({ title: input.messages.find((message) => message.role === 'user')?.content?.slice(0, 80) || 'Private chat', modelRole: input.modelRole ?? 'auto' });
+  const conversation = input.conversationId ? await getConversation(input.conversationId, input.userId) : await createConversation({ title: 'New conversation', modelRole: input.modelRole ?? 'auto', createdBy: input.userId, projectId: input.projectId });
   if (!conversation) throw new Error(`Conversation ${input.conversationId} not found`);
 
   for (const message of input.messages) {
     if (message.role === 'user' || message.role === 'system') {
-      await addConversationMessage({ conversationId: conversation.id, role: message.role as 'user' | 'system', content: message.content });
+      await addConversationMessage({ conversationId: conversation.id, role: message.role as 'user' | 'system', content: message.content, ownerId: input.userId });
     }
   }
 
-  const history = await listConversationMessages(conversation.id);
+  const history = await listConversationMessages(conversation.id, input.userId);
   const completion = await chatWithPrivateModel(history.map((message) => ({ role: message.role, content: message.content })), input);
   const content = assistantText(completion);
-  await addConversationMessage({ conversationId: conversation.id, role: 'assistant', content, modelName: completion.modelRouting?.modelName, metadata: { modelRouting: completion.modelRouting } });
-  await writeAudit({ actorType: 'admin', action: 'chat.completion', targetType: 'conversation', targetId: conversation.id, status: 'ok', metadata: completion.modelRouting });
-  return { conversationId: conversation.id, privateModelOnly: true, ...completion };
+  await addConversationMessage({ conversationId: conversation.id, role: 'assistant', content, metadata: { capability: input.capability ?? 'chat', category: input.category ?? 'general' }, ownerId: input.userId });
+  await writeAudit({ actorType: 'system', action: 'capability.executed', targetType: 'conversation', targetId: conversation.id, status: 'ok', metadata: { capability: input.capability ?? 'chat', category: input.category ?? 'general', durationMs: completion.latencyMs, success: true } });
+  const { modelRouting: _hiddenRouting, ...whiteLabelCompletion } = completion;
+  return { conversationId: conversation.id, privateModelOnly: true, capability: input.capability ?? 'chat', ...whiteLabelCompletion }; 
 }
 
 export async function privateChatCompletionStream(input: ChatCompletionInput) {

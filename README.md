@@ -64,3 +64,11 @@ Status category: **blocked**. Production-ready: **no**.
 The repository contains the API, dashboard, RunPod orchestration, Supabase migrations, worker, and real small-test runtime image workflow. The real small-test image has been built by GitHub Actions, but live production validation is still blocked until the GHCR image is public/pullable by RunPod and Supabase migrations `004` and `005` are live-applied and verified.
 
 Do not start Qwen or Llama until real small-test inference passes end-to-end.
+
+## Runtime Management
+
+Runtime Management is administrator-only. It provides runtime pools, lifecycle policies, configurable GPU profiles, autoscaling rules, costs, sanitized logs, settings, and emergency controls under `/admin/runtime-management`. Regular users must not see infrastructure details. See `docs/runtime-management.md`.
+
+## White-label product workspace
+
+The regular user workspace exposes product capabilities only: Chat, Studio, Coding, Workflows, Integrations, and Settings. Runtime/model/provider/GPU details remain administrator-only in Runtime Management. Projects are the top-level container for chats, generated media, code, workflows, integrations, and future knowledge bases.

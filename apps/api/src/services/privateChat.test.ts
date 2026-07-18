@@ -11,6 +11,7 @@ describe('private chat', () => {
     updateModelRuntimeStatus(model.id, 'healthy', 'http://private-llama.test');
     const result = await privateChatCompletion({ messages: [{ role: 'user', content: 'hello' }], modelRole: 'business_reasoning', fetch: fakeFetch });
     expect(result.privateModelOnly).toBe(true);
+    expect(result).not.toHaveProperty('modelRouting');
     const stored = await listConversationMessages(result.conversationId);
     expect(stored.map((message) => message.role)).toContain('assistant');
   });

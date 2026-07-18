@@ -19,7 +19,8 @@ import { checkAutoStop, emergencyStopAll, manualStopSession } from '../services/
 import { createLlama405BPodTemplate, createQwenCoderPodTemplate, createRunPodPod, createSmallTestPodTemplate, deleteRunPodPod, emergencyStopAllActiveSessions, getRunPodPodLogs, getRunPodPodStatus, listRunPodPods, scheduleAutoStop, startRunPodPod, stopRunPodPod, testRunPodConnection } from '../services/runpodLifecycle.js';
 import { getSettings, patchSettings } from '../services/settings.js';
 import { getModelRuntimeLogs, getModelRuntimeStatus, pollModelRuntimes, restartModelRuntime, startModelRuntime, stopModelRuntime } from '../services/modelRuntimeHealth.js';
-import { addConversationMessage, createConversation, getConversation, listConversationMessages, listConversations } from '../services/conversations.js';
+import { addConversationMessage, createConversation, deleteConversation, getConversation, listConversationMessages, listConversations, updateConversation } from '../services/conversations.js';
+import { createProject, ensureDefaultProject, listProjects } from '../services/projects.js';
 import { privateChatCompletion, privateChatCompletionStream } from '../services/privateChat.js';
 import { cancelTask, retryTask, runTask } from '../services/taskExecutor.js';
 import { connectGitHubRepo, createGitHubBranch, createOrUpdateGitHubFile, listGitHubPullRequests, listGitHubRepos, openGitHubPullRequest, readGitHubActionsStatus, readGitHubFile, readGitHubTree, testGitHubToken } from '../services/githubService.js';
@@ -77,6 +78,7 @@ const taskSchema = z.object({
 
 export async function registerRoutes(app: FastifyInstance) {
   app.get('/health', async () => ({ ok: true, service: 'wyndme-private-ai-api' }));
+  app.get('/me', async (req) => ({ user: req.authUser ? { id: req.authUser.userId, email: req.authUser.email, role: req.authUser.role } : undefined }));
   app.get('/status', async () => ({
     model: env.MODEL_ID,
     privateByDefault: env.ALLOW_EXTERNAL_MODEL_PROVIDERS !== 'true',
@@ -215,23 +217,34 @@ export async function registerRoutes(app: FastifyInstance) {
 
 
   app.post('/chat/completions', async (req) => {
-    const body = z.object({ conversationId: z.string().optional(), messages: z.array(z.object({ role: z.string(), content: z.string() })), temperature: z.number().optional(), max_tokens: z.number().optional(), modelRole: modelRoleSchema.default('auto'), taskType: z.string().default('business_strategy'), systemPrompt: z.string().optional() }).parse(req.body);
-    return privateChatCompletion(body);
+    const body = z.object({ conversationId: z.string().optional(), projectId: z.string().optional(), messages: z.array(z.object({ role: z.string(), content: z.string() })), temperature: z.number().optional(), max_tokens: z.number().optional(), taskType: z.string().default('general_chat'), capability: z.string().default('chat'), category: z.string().default('general'), systemPrompt: z.string().optional() }).parse(req.body);
+    return privateChatCompletion({ ...body, modelRole: 'auto', userId: req.authUser?.userId });
   });
   app.post('/chat/completions/stream', async (req) => {
-    const body = z.object({ conversationId: z.string().optional(), messages: z.array(z.object({ role: z.string(), content: z.string() })), temperature: z.number().optional(), max_tokens: z.number().optional(), modelRole: modelRoleSchema.default('auto'), taskType: z.string().default('business_strategy'), systemPrompt: z.string().optional() }).parse(req.body);
-    return privateChatCompletionStream(body);
+    const body = z.object({ conversationId: z.string().optional(), projectId: z.string().optional(), messages: z.array(z.object({ role: z.string(), content: z.string() })), temperature: z.number().optional(), max_tokens: z.number().optional(), taskType: z.string().default('general_chat'), capability: z.string().default('chat'), category: z.string().default('general'), systemPrompt: z.string().optional() }).parse(req.body);
+    return privateChatCompletionStream({ ...body, modelRole: 'auto', userId: req.authUser?.userId });
   });
-  app.get('/conversations', async () => listConversations());
-  app.post('/conversations', async (req) => createConversation(z.object({ title: z.string().optional(), modelRole: modelRoleSchema.default('auto') }).parse(req.body ?? {})));
+  app.get('/projects', async (req) => listProjects(req.authUser?.userId));
+  app.post('/projects', async (req) => createProject({ ...z.object({ name: z.string().min(1) }).parse(req.body ?? {}), ownerId: req.authUser?.userId }));
+  app.post('/projects/default', async (req) => ensureDefaultProject(req.authUser?.userId));
+  app.get('/conversations', async (req) => { const query = z.object({ projectId: z.string().optional(), q: z.string().optional() }).parse(req.query); return listConversations(req.authUser?.userId, query.projectId, query.q); });
+  app.post('/conversations', async (req) => createConversation({ ...z.object({ title: z.string().optional(), projectId: z.string().optional(), folder: z.string().optional(), settings: z.record(z.unknown()).optional() }).parse(req.body ?? {}), modelRole: 'auto', createdBy: req.authUser?.userId }));
   app.get('/conversations/:conversationId', async (req) => {
     const conversationId = (req.params as { conversationId: string }).conversationId;
-    return { conversation: await getConversation(conversationId), messages: await listConversationMessages(conversationId) };
+    return { conversation: await getConversation(conversationId, req.authUser?.userId), messages: await listConversationMessages(conversationId, req.authUser?.userId) };
   });
+
+  app.patch('/conversations/:conversationId', async (req) => {
+    const conversationId = (req.params as { conversationId: string }).conversationId;
+    const body = z.object({ title: z.string().optional(), archived: z.boolean().optional(), pinned: z.boolean().optional(), folder: z.string().optional(), settings: z.record(z.unknown()).optional() }).parse(req.body ?? {});
+    return updateConversation({ conversationId, ownerId: req.authUser?.userId, ...body });
+  });
+  app.delete('/conversations/:conversationId', async (req) => deleteConversation((req.params as { conversationId: string }).conversationId, req.authUser?.userId));
+
   app.post('/conversations/:conversationId/messages', async (req) => {
     const conversationId = (req.params as { conversationId: string }).conversationId;
     const body = z.object({ role: z.enum(['system', 'user', 'assistant', 'tool']), content: z.string(), modelName: z.string().optional(), metadata: z.record(z.unknown()).optional() }).parse(req.body);
-    return addConversationMessage({ conversationId, ...body });
+    return addConversationMessage({ conversationId, ...body, ownerId: req.authUser?.userId });
   });
 
   app.get('/tasks', async () => listTasks());

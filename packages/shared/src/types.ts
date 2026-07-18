@@ -55,6 +55,39 @@ export interface ModelRegistryEntry {
   priority: number;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  ownerId?: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt?: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  modelRole: ModelRole;
+  createdBy?: string;
+  projectId?: string;
+  archivedAt?: string;
+  pinnedAt?: string;
+  folder?: string;
+  settings?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  role: 'system'|'user'|'assistant'|'tool';
+  content: string;
+  modelName?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface AiSession {
   id:string;
   provider:'runpod';
@@ -172,25 +205,6 @@ export interface CostEvent {
   estimatedHourlyCost?: number;
   estimatedTotalCost?: number;
   eventType: string;
-  createdAt: string;
-}
-
-export interface Conversation {
-  id: string;
-  title: string;
-  modelRole: ModelRole;
-  createdBy?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ConversationMessage {
-  id: string;
-  conversationId: string;
-  role: 'system'|'user'|'assistant'|'tool';
-  content: string;
-  modelName?: string;
-  metadata?: Record<string, unknown>;
   createdAt: string;
 }
 

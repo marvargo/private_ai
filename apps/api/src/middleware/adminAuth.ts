@@ -4,12 +4,30 @@ import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/su
 import { env } from '../utils/env.js';
 
 const PUBLIC_ROUTES = new Set(['/health']);
+const USER_ROUTES = [
+  '/status',
+  '/chat',
+  '/chat/completions',
+  '/chat/completions/stream',
+  '/conversations',
+  '/projects',
+  '/me',
+];
+
+const ADMIN_ROUTE_PREFIXES = [
+  '/admin/runtime-management',
+  '/settings', '/state', '/diagnostics', '/models', '/model', '/approvals', '/cost-events', '/credentials', '/feasibility', '/runpod', '/sessions', '/tasks', '/audit-logs', '/github', '/supabase',
+];
 
 type HeaderValue = string | string[] | undefined;
 
-export interface AdminIdentity {
+export interface AuthIdentity {
   userId: string;
   email?: string;
+  role: 'user' | 'admin';
+}
+
+export interface AdminIdentity extends AuthIdentity {
   role: 'admin';
 }
 
@@ -33,7 +51,7 @@ interface AuthDependencies {
 }
 
 export type AdminAuthResult =
-  | { allowed: true; identity?: AdminIdentity; usedFallbackAdminApiKey?: boolean }
+  | { allowed: true; identity?: AuthIdentity; usedFallbackAdminApiKey?: boolean }
   | { allowed: false; statusCode: 401 | 403 | 503; error: string };
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | undefined;
@@ -72,6 +90,18 @@ export async function findAdminProfile(userId: string) {
   return { role: String(data.role), email: typeof data.email === 'string' ? data.email : undefined };
 }
 
+function matchesPath(path: string, routes: string[]) {
+  return routes.some((route) => path === route || path.startsWith(`${route}/`));
+}
+
+function isAdminRoute(path: string) {
+  return matchesPath(path, ADMIN_ROUTE_PREFIXES);
+}
+
+function isUserRoute(path: string) {
+  return matchesPath(path, USER_ROUTES);
+}
+
 export async function authenticateAdmin(context: AuthContext, dependencies: AuthDependencies = {}): Promise<AdminAuthResult> {
   if (PUBLIC_ROUTES.has(context.path)) return { allowed: true };
 
@@ -83,7 +113,7 @@ export async function authenticateAdmin(context: AuthContext, dependencies: Auth
   }
 
   const token = bearerToken(context.authorization);
-  if (!token) return { allowed: false, statusCode: 401, error: 'Supabase admin JWT required' };
+  if (!token) return { allowed: false, statusCode: 401, error: isAdminRoute(context.path) ? 'Supabase admin JWT required' : 'Supabase JWT required' };
 
   const supabaseConfigured = context.supabaseConfigured ?? isSupabaseConfigured();
   if (!supabaseConfigured) return { allowed: false, statusCode: 503, error: 'Supabase auth is not configured' };
@@ -91,10 +121,15 @@ export async function authenticateAdmin(context: AuthContext, dependencies: Auth
   try {
     const verified = await (dependencies.verifyJwt ?? verifySupabaseJwt)(token);
     const profile = await (dependencies.findUserRole ?? findAdminProfile)(verified.sub);
-    if (profile?.role !== 'admin') return { allowed: false, statusCode: 403, error: 'Admin role required' };
-    return { allowed: true, identity: { userId: verified.sub, email: profile.email ?? verified.email, role: 'admin' } };
+    const role = profile?.role === 'admin' ? 'admin' : 'user';
+    const identity: AuthIdentity = { userId: verified.sub, email: profile?.email ?? verified.email, role };
+
+    if (isAdminRoute(context.path) && role !== 'admin') return { allowed: false, statusCode: 403, error: 'Admin role required' };
+    if (isUserRoute(context.path) || isAdminRoute(context.path)) return { allowed: true, identity };
+    if (role !== 'admin') return { allowed: false, statusCode: 403, error: 'Admin role required' };
+    return { allowed: true, identity: { ...identity, role: 'admin' } };
   } catch {
-    return { allowed: false, statusCode: 401, error: 'Invalid Supabase admin JWT' };
+    return { allowed: false, statusCode: 401, error: isAdminRoute(context.path) ? 'Invalid Supabase admin JWT' : 'Invalid Supabase JWT' };
   }
 }
 
@@ -112,7 +147,8 @@ export async function registerAdminAuth(app: FastifyInstance) {
     }
 
     if (result.identity) {
-      request.adminUser = result.identity;
+      request.authUser = result.identity;
+      if (result.identity.role === 'admin') request.adminUser = { userId: result.identity.userId, email: result.identity.email, role: 'admin' };
     }
   });
 }
@@ -120,5 +156,6 @@ export async function registerAdminAuth(app: FastifyInstance) {
 declare module 'fastify' {
   interface FastifyRequest {
     adminUser?: AdminIdentity;
+    authUser?: AuthIdentity;
   }
 }
