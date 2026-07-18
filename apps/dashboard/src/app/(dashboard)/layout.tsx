@@ -12,6 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <h1 className="text-xl font-bold">WyndMe Private AI</h1>
 
           <nav className="mt-3 flex flex-wrap gap-3 text-sm text-slate-300" aria-label="Primary workspace navigation">
+            <a href="/projects" className="hover:text-cyan-200">Projects</a>
             <a href="/chat" className="hover:text-cyan-200">Chat</a>
             <a href="/studio" className="hover:text-cyan-200">Studio</a>
             <a href="/coding" className="hover:text-cyan-200">Coding</a>

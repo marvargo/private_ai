@@ -53,8 +53,8 @@ export async function listConversations(ownerId?: string, projectId?: string, qu
   return Array.from(conversations.values()).filter((conversation) => (!ownerId || conversation.createdBy === ownerId) && (!projectId || (conversation as any).projectId === projectId) && (!queryText || conversation.title.toLowerCase().includes(queryText.toLowerCase()))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-export async function createConversation(input: { title?: string; modelRole?: ModelRole; createdBy?: string; projectId?: string; folder?: string; settings?: Record<string, unknown> }) {
-  const project = input.projectId ? undefined : await ensureDefaultProject(input.createdBy);
+export async function createConversation(input: { title?: string; modelRole?: ModelRole; createdBy?: string; projectId?: string; folder?: string; settings?: Record<string, unknown>; standalone?: boolean }) {
+  const project = input.projectId || input.standalone ? undefined : await ensureDefaultProject(input.createdBy);
   const projectId = input.projectId ?? project?.id;
   const now = new Date().toISOString();
   const local: Conversation = { id: id('conversation'), title: input.title || 'New conversation', modelRole: input.modelRole ?? 'auto', createdBy: input.createdBy, projectId, folder: input.folder, settings: input.settings ?? {}, createdAt: now, updatedAt: now } as Conversation;
