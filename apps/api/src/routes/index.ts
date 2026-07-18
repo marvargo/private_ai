@@ -30,6 +30,7 @@ import { applyMigrationDraft, connectSupabaseProject, generateMigrationDraft, li
 import { validatePrivateModelRuntime } from '../services/modelValidation.js';
 import { latestRunPodValidationPersistence } from '../services/persistenceDiagnostics.js';
 import { listProductionGates, llama405BControlledValidationPlan, recordProductionGate } from '../services/productionValidation.js';
+import { getSystemReadiness } from '../services/systemReadiness.js';
 
 const modelRoleSchema = z.enum(['business_reasoning', 'research', 'architecture', 'coding', 'qa', 'database', 'devops', 'auto']);
 
@@ -91,6 +92,7 @@ export async function registerRoutes(app: FastifyInstance) {
     productionReadinessWarnings: productionReadinessWarnings(),
   }));
   app.get('/admin/production/validation', async () => listProductionGates());
+  app.get('/admin/runtime-management/readiness', async () => getSystemReadiness());
   app.get('/admin/production/llama405b-plan', async () => llama405BControlledValidationPlan());
   app.post('/admin/production/validation/gates/:gateId', async (req) => {
     const body = z.object({ status: z.enum(['pending', 'passed', 'failed', 'blocked']), evidence: z.string().optional(), blocker: z.string().optional() }).parse(req.body ?? {});

@@ -30,6 +30,7 @@ export const envSchema = z.object({
   MAX_DAILY_GPU_BUDGET_USD: z.coerce.number().optional(),
   AUTO_STOP_ENABLED: z.string().default('true'),
   ALLOW_EXTERNAL_MODEL_PROVIDERS: z.string().default('false'),
+  ALLOW_IN_MEMORY_FALLBACK: z.string().default('false'),
 });
 
 const parsedEnv = envSchema.parse(process.env);
