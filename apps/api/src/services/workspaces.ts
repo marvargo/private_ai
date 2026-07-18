@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/supabaseClient.js';
+import { AppError } from '../errors/AppError.js';
+import { getDevelopmentInMemoryStores } from '../repositories/index.js';
 import { writeAudit } from './orchestrator.js';
 
 type WorkspaceKind = 'studio_asset' | 'code_project' | 'workflow' | 'integration' | 'analytics_event';
@@ -18,7 +20,6 @@ export interface WorkspaceRecord {
   updatedAt: string;
 }
 
-const records = new Map<string, WorkspaceRecord>();
 function id(prefix: string) { return `${prefix}_${randomUUID()}`; }
 function strip(value?: string) { return value?.replace(/^[a-z_]+_/, ''); }
 function prefix(kind: WorkspaceKind, value: string) { return value.includes('_') ? value : `${kind}_${value}`; }
@@ -44,15 +45,15 @@ export async function listWorkspaceRecords(kind: WorkspaceKind, ownerId?: string
       const { data, error } = await query.limit(100);
       if (error) throw error;
       return (data ?? []).map((row) => fromRow(kind, row));
-    } catch { /* local fallback */ }
+    } catch (error) { throw new AppError({ message: 'Failed to list workspace records', code: 'WORKSPACE_RECORDS_LIST_FAILED', statusCode: 503, safeDetails: { kind, ownerId: Boolean(ownerId), projectId: Boolean(projectId) }, cause: error }); }
   }
-  return Array.from(records.values()).filter((record) => record.kind === kind && (!ownerId || record.ownerId === ownerId) && (!projectId || record.projectId === projectId)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const { workspaceRecords } = getDevelopmentInMemoryStores();
+  return Array.from(workspaceRecords.values()).filter((record) => record.kind === kind && (!ownerId || record.ownerId === ownerId) && (!projectId || record.projectId === projectId)).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function createWorkspaceRecord(input: { kind: WorkspaceKind; ownerId?: string; projectId?: string; name: string; status?: string; capability: string; category?: string; metadata?: Record<string, unknown> }) {
   const now = new Date().toISOString();
   const record: WorkspaceRecord = { id: id(input.kind), projectId: input.projectId, ownerId: input.ownerId, kind: input.kind, name: input.name, status: input.status ?? 'draft', capability: input.capability, category: input.category, metadata: input.metadata ?? {}, createdAt: now, updatedAt: now };
-  records.set(record.id, record);
   if (isSupabaseConfigured()) {
     try {
       if (input.kind === 'studio_asset') {
@@ -63,8 +64,10 @@ export async function createWorkspaceRecord(input: { kind: WorkspaceKind; ownerI
       const { data, error } = await getSupabaseAdminClient().from('project_workspace_items').insert({ id: strip(record.id), project_id: strip(input.projectId), owner_id: input.ownerId, kind: input.kind, name: input.name, status: record.status, capability: input.capability, category: input.category, metadata: record.metadata }).select('*').single();
       if (error) throw error;
       return fromRow(input.kind, data);
-    } catch { /* local fallback */ }
+    } catch (error) { throw new AppError({ message: 'Failed to create workspace record', code: 'WORKSPACE_RECORD_CREATE_FAILED', statusCode: 503, safeDetails: { kind: input.kind, projectId: Boolean(input.projectId) }, cause: error }); }
   }
+  const { workspaceRecords } = getDevelopmentInMemoryStores();
+  workspaceRecords.set(record.id, record);
   await writeAudit({ actorType: 'system', action: `${input.capability}.workspace_record.created`, targetType: input.kind, targetId: record.id, status: 'ok', metadata: { projectId: input.projectId, category: input.category } });
   return record;
 }

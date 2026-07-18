@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "ALLOW_IN_MEMORY_FALLBACK=true vitest run",
     "worker:dev": "tsx watch src/worker.ts",
     "worker:start": "node dist/worker.js"
   },

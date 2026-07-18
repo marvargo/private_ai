@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/supabaseClient.js';
+import { AppError } from '../errors/AppError.js';
+import { getDevelopmentInMemoryStores } from '../repositories/index.js';
 
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type ApprovalRisk = 'low' | 'medium' | 'high' | 'critical';
@@ -28,7 +30,6 @@ type ApprovalRow = {
   resolved_at?: string | null;
 };
 
-const approvals = new Map<string, ApprovalRecord>();
 
 function stripPrefix(id: string) {
   return id.replace(/^approval_/, '');
@@ -59,13 +60,18 @@ function localRequestApproval(input: Omit<ApprovalRecord, 'id' | 'status' | 'cre
     createdAt: new Date().toISOString(),
     ...input,
   };
-  approvals.set(record.id, record);
+  getDevelopmentInMemoryStores().approvals.set(record.id, record);
   return record;
 }
 
 export async function requestApproval(input: Omit<ApprovalRecord, 'id' | 'status' | 'createdAt'>) {
-  const local = localRequestApproval(input);
-  if (!isSupabaseConfigured()) return local;
+  if (!isSupabaseConfigured()) return localRequestApproval(input);
+  const local: ApprovalRecord = {
+    id: `approval_${randomUUID()}`,
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+    ...input,
+  };
   try {
     const { data, error } = await getSupabaseAdminClient().from('approvals').insert({
       id: stripPrefix(local.id),
@@ -78,8 +84,8 @@ export async function requestApproval(input: Omit<ApprovalRecord, 'id' | 'status
     }).select('*').single();
     if (error) throw error;
     return toRecord(data as ApprovalRow);
-  } catch {
-    return local;
+  } catch (error) {
+    throw new AppError({ message: 'Failed to request approval', code: 'APPROVAL_REQUEST_FAILED', statusCode: 503, safeDetails: { approvalType: input.approvalType, riskLevel: input.riskLevel }, cause: error });
   }
 }
 
@@ -94,10 +100,11 @@ export async function resolveApproval(id: string, status: Exclude<ApprovalStatus
         .single();
       if (error) throw error;
       return toRecord(data as ApprovalRow);
-    } catch {
-      // Fall back to local in-memory resolution below.
+    } catch (error) {
+      throw new AppError({ message: 'Failed to resolve approval', code: 'APPROVAL_RESOLVE_FAILED', statusCode: 503, safeDetails: { approvalId: id, status }, cause: error });
     }
   }
+  const { approvals } = getDevelopmentInMemoryStores();
   const existing = approvals.get(id);
   if (!existing) throw new Error(`Approval ${id} not found`);
   const updated = { ...existing, status, reason, resolvedAt: new Date().toISOString() };
@@ -120,9 +127,10 @@ export async function listApprovals(status?: ApprovalStatus) {
       const { data, error } = await query;
       if (error) throw error;
       return ((data ?? []) as ApprovalRow[]).map(toRecord);
-    } catch {
-      // Fall back to local list below.
+    } catch (error) {
+      throw new AppError({ message: 'Failed to list approvals', code: 'APPROVALS_LIST_FAILED', statusCode: 503, safeDetails: { status }, cause: error });
     }
   }
+  const { approvals } = getDevelopmentInMemoryStores();
   return Array.from(approvals.values()).filter((approval) => !status || approval.status === status);
 }

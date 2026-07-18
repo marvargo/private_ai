@@ -39,9 +39,9 @@ describe('Phase 0 readiness baseline', () => {
     expect(redactSensitiveValue('normal text')).toBe('normal text');
   });
 
-  it('defaults in-memory fallback to disabled outside explicit opt-in', () => {
+  it('allows in-memory fallback only through explicit test/development opt-in', () => {
     expect(isProductionRuntime()).toBe(false);
-    expect(allowInMemoryFallback()).toBe(false);
+    expect(allowInMemoryFallback()).toBe(process.env.ALLOW_IN_MEMORY_FALLBACK === 'true');
   });
 
   it('checks contiguous migration files in a supplied directory', () => {

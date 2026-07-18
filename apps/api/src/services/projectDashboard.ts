@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/supabaseClient.js';
+import { AppError } from '../errors/AppError.js';
+import { getDevelopmentInMemoryStores } from '../repositories/index.js';
 import { writeAudit } from './orchestrator.js';
 import { listConversations } from './conversations.js';
 import { listProjects, Project } from './projects.js';
@@ -60,11 +62,6 @@ export interface ProjectInitiative {
   blockers: string[];
 }
 
-const members = new Map<string, ProjectMember>();
-const invitations = new Map<string, ProjectInvitation>();
-const activities = new Map<string, ProjectActivityEvent>();
-const initiatives = new Map<string, ProjectInitiative>();
-const favorites = new Set<string>();
 
 const rolePermissions: Record<ProjectRole, ProjectPermission[]> = {
   owner: ['view_project', 'manage_project', 'invite_member', 'create_content', 'approve_requests', 'view_costs'],
@@ -92,24 +89,26 @@ export function permissionsForRole(role: ProjectRole) {
 export async function ensureProjectOwnerMembership(project: Project) {
   if (!project.ownerId) return;
   const key = memberKey(project.id, project.ownerId);
-  if (!members.has(key)) members.set(key, { id: id('member'), projectId: project.id, userId: project.ownerId, displayName: 'Project owner', role: 'owner', lastActivityAt: project.updatedAt, invitationStatus: 'accepted' });
+  const { projectMembers } = getDevelopmentInMemoryStores();
+  if (!projectMembers.has(key)) projectMembers.set(key, { id: id('member'), projectId: project.id, userId: project.ownerId, displayName: 'Project owner', role: 'owner', lastActivityAt: project.updatedAt, invitationStatus: 'accepted' });
 }
 
 export async function getProjectMembership(projectId: string, userId?: string) {
   if (!userId) return undefined;
-  const local = members.get(memberKey(projectId, userId));
+  const stores = isSupabaseConfigured() ? undefined : getDevelopmentInMemoryStores();
+  const local = stores?.projectMembers.get(memberKey(projectId, userId));
   if (local) return local;
   const project = (await listProjects()).find((item) => item.id === projectId);
   if (project?.ownerId === userId) {
     await ensureProjectOwnerMembership(project);
-    return members.get(memberKey(projectId, userId));
+    return getDevelopmentInMemoryStores().projectMembers.get(memberKey(projectId, userId));
   }
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await getSupabaseAdminClient().from('project_members').select('*').eq('project_id', strip(projectId)).eq('user_id', userId).maybeSingle();
       if (error) throw error;
       if (data) return { id: `member_${data.id}`, projectId, userId, displayName: data.display_name ?? 'Project member', role: data.role, avatarUrl: data.avatar_url ?? undefined, lastActivityAt: data.last_activity_at ?? undefined, invitationStatus: 'accepted' } as ProjectMember;
-    } catch { /* local fallback */ }
+    } catch (error) { throw new AppError({ message: 'Failed to read project membership', code: 'PROJECT_MEMBERSHIP_READ_FAILED', statusCode: 503, safeDetails: { projectId, userId: Boolean(userId) }, cause: error }); }
   }
   return undefined;
 }
@@ -122,7 +121,7 @@ export async function requireProjectMembership(projectId: string, userId?: strin
 
 export async function addProjectMember(input: { projectId: string; userId: string; displayName: string; role: ProjectRole }) {
   const member: ProjectMember = { id: id('member'), invitationStatus: 'accepted', lastActivityAt: now(), ...input };
-  members.set(memberKey(input.projectId, input.userId), member);
+  getDevelopmentInMemoryStores().projectMembers.set(memberKey(input.projectId, input.userId), member);
   return member;
 }
 
@@ -130,14 +129,14 @@ export async function createProjectInvitation(input: { projectId: string; email:
   const inviter = await requireProjectMembership(input.projectId, input.invitedBy);
   if (!permissionsForRole(inviter.role).includes('invite_member')) throw new Error('Invite permission required');
   const invitation: ProjectInvitation = { id: id('invitation'), projectId: input.projectId, email: input.email, role: input.role, invitedBy: input.invitedBy, message: input.message, status: 'pending', createdAt: now(), expiresAt: new Date(Date.now() + 7 * 24 * 3600_000).toISOString() };
-  invitations.set(invitation.id, invitation);
+  getDevelopmentInMemoryStores().projectInvitations.set(invitation.id, invitation);
   await recordProjectActivity({ projectId: input.projectId, actorName: inviter.displayName, actorType: 'user', action: 'invited a teammate', targetTitle: input.email, projectSection: 'team', status: 'pending', visibility: 'project', link: `/projects/${input.projectId}` });
   await writeAudit({ actorType: 'system', action: 'project.invitation.created', targetType: 'project_invitation', targetId: invitation.id, status: 'ok', metadata: { projectId: input.projectId, role: input.role } });
   return invitation;
 }
 
 export async function acceptProjectInvitation(input: { invitationId: string; userId: string; displayName: string }) {
-  const invitation = invitations.get(input.invitationId);
+  const invitation = getDevelopmentInMemoryStores().projectInvitations.get(input.invitationId);
   if (!invitation || invitation.status !== 'pending') throw new Error('Invitation is not pending');
   if (new Date(invitation.expiresAt).getTime() < Date.now()) {
     invitation.status = 'expired';
@@ -149,38 +148,45 @@ export async function acceptProjectInvitation(input: { invitationId: string; use
 
 export async function recordProjectActivity(input: Omit<ProjectActivityEvent, 'id' | 'createdAt'>) {
   const event = sanitizeActivity(input);
-  activities.set(event.id, event);
+  getDevelopmentInMemoryStores().projectActivities.set(event.id, event);
   return event;
 }
 
 export async function createInitiative(input: Omit<ProjectInitiative, 'id'>) {
   const initiative = { ...input, id: id('initiative') };
-  initiatives.set(initiative.id, initiative);
+  getDevelopmentInMemoryStores().projectInitiatives.set(initiative.id, initiative);
   return initiative;
 }
 
 export async function favoriteProject(projectId: string, userId: string, favorite: boolean) {
   const key = favoriteKey(projectId, userId);
-  if (favorite) favorites.add(key);
-  else favorites.delete(key);
+  const { projectFavorites } = getDevelopmentInMemoryStores();
+  if (favorite) projectFavorites.add(key);
+  else projectFavorites.delete(key);
   return { projectId, favorite };
 }
 
 export async function listProjectCards(userId?: string) {
   const owned = await listProjects(userId);
   for (const project of owned) await ensureProjectOwnerMembership(project);
-  const memberProjects = Array.from(members.values()).filter((member) => member.userId === userId).map((member) => member.projectId);
+  const stores = getDevelopmentInMemoryStores();
+  const memberProjects = Array.from(stores.projectMembers.values()).filter((member) => member.userId === userId).map((member) => member.projectId);
   const visibleProjects = (await listProjects()).filter((project) => owned.some((own) => own.id === project.id) || memberProjects.includes(project.id));
-  const all = Array.from(new Map<string, Project>(visibleProjects.map((project) => [project.id, project] as [string, Project])).values());
+  const seenProjectIds: Record<string, true> = {};
+  const all = visibleProjects.filter((project) => {
+    if (seenProjectIds[project.id]) return false;
+    seenProjectIds[project.id] = true;
+    return true;
+  });
   const cards = await Promise.all(all.map(async (project) => {
-    const memberList = Array.from(members.values()).filter((member) => member.projectId === project.id);
+    const memberList = Array.from(stores.projectMembers.values()).filter((member) => member.projectId === project.id);
     const chats = (await listConversations(userId, project.id)).length;
     const codeProjects = (await listWorkspaceRecords('code_project', userId, project.id)).length;
     const workflows = (await listWorkspaceRecords('workflow', userId, project.id)).length;
     const integrations = (await listWorkspaceRecords('integration', userId, project.id)).length;
     const assets = (await listWorkspaceRecords('studio_asset', userId, project.id)).length;
     const role = memberList.find((member) => member.userId === userId)?.role ?? (project.ownerId === userId ? 'owner' : 'viewer');
-    return { id: project.id, name: project.name, projectType: 'Workspace', description: 'Collaborative private AI project', status: project.archivedAt ? 'archived' : 'active', owner: project.ownerId === userId ? 'Me' : 'Project owner', currentUserRole: role, memberCount: memberList.length || (project.ownerId ? 1 : 0), lastActivity: project.updatedAt, favorite: Boolean(userId && favorites.has(favoriteKey(project.id, userId))), health: 'Healthy', counts: { chats, images: assets, videos: 0, codeProjects, workflows, integrations, documents: 0 }, pendingApprovals: 0 };
+    return { id: project.id, name: project.name, projectType: 'Workspace', description: 'Collaborative private AI project', status: project.archivedAt ? 'archived' : 'active', owner: project.ownerId === userId ? 'Me' : 'Project owner', currentUserRole: role, memberCount: memberList.length || (project.ownerId ? 1 : 0), lastActivity: project.updatedAt, favorite: Boolean(userId && stores.projectFavorites.has(favoriteKey(project.id, userId))), health: 'Healthy', counts: { chats, images: assets, videos: 0, codeProjects, workflows, integrations, documents: 0 }, pendingApprovals: 0 };
   }));
   return { recent: cards, ownedByMe: cards.filter((card) => card.currentUserRole === 'owner'), sharedWithMe: cards.filter((card) => card.currentUserRole !== 'owner'), favorites: cards.filter((card) => card.favorite), archived: cards.filter((card) => card.status === 'archived') };
 }
@@ -189,10 +195,11 @@ export async function getProjectDashboard(projectId: string, userId?: string) {
   const membership = await requireProjectMembership(projectId, userId);
   const project = (await listProjects()).find((item) => item.id === projectId) ?? (await listProjects(userId)).find((item) => item.id === projectId);
   if (!project) throw new Error('Project not found');
-  const memberList = Array.from(members.values()).filter((member) => member.projectId === projectId);
-  const invited = Array.from(invitations.values()).filter((invitation) => invitation.projectId === projectId && invitation.status === 'pending');
-  const projectActivities = Array.from(activities.values()).filter((event) => event.projectId === projectId && event.visibility === 'project').sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0, 20);
-  const projectInitiatives = Array.from(initiatives.values()).filter((initiative) => initiative.projectId === projectId);
+  const stores = getDevelopmentInMemoryStores();
+  const memberList = Array.from(stores.projectMembers.values()).filter((member) => member.projectId === projectId);
+  const invited = Array.from(stores.projectInvitations.values()).filter((invitation) => invitation.projectId === projectId && invitation.status === 'pending');
+  const projectActivities = Array.from(stores.projectActivities.values()).filter((event) => event.projectId === projectId && event.visibility === 'project').sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0, 20);
+  const projectInitiatives = Array.from(stores.projectInitiatives.values()).filter((initiative) => initiative.projectId === projectId);
   const chats = (await listConversations(userId, projectId)).filter((chat) => chat.projectId === projectId);
   const codeProjects = await listWorkspaceRecords('code_project', userId, projectId);
   const workflows = await listWorkspaceRecords('workflow', userId, projectId);
@@ -200,7 +207,7 @@ export async function getProjectDashboard(projectId: string, userId?: string) {
   const assets = await listWorkspaceRecords('studio_asset', userId, projectId);
   const summary = await usageSummary(userId, projectId);
   return {
-    header: { projectId, name: project.name, projectType: 'Workspace', description: 'Collaborative private AI project', status: project.archivedAt ? 'archived' : 'active', cover: '#0f172a', owner: project.ownerId === userId ? 'Me' : 'Project owner', currentUserRole: membership.role, memberCount: memberList.length || 1, invitedMemberCount: invited.length, lastActivity: project.updatedAt, favorite: Boolean(userId && favorites.has(favoriteKey(projectId, userId))) },
+    header: { projectId, name: project.name, projectType: 'Workspace', description: 'Collaborative private AI project', status: project.archivedAt ? 'archived' : 'active', cover: '#0f172a', owner: project.ownerId === userId ? 'Me' : 'Project owner', currentUserRole: membership.role, memberCount: memberList.length || 1, invitedMemberCount: invited.length, lastActivity: project.updatedAt, favorite: Boolean(userId && stores.projectFavorites.has(favoriteKey(projectId, userId))) },
     myWork: [...chats.slice(0, 3).map((chat) => ({ title: chat.title, type: 'chat', status: 'active', projectArea: 'Chat', lastUpdated: chat.updatedAt, collaborators: [membership.displayName], quickAction: 'Open' })), ...codeProjects.slice(0, 3).map((item) => ({ title: item.name, type: 'coding', status: item.status, projectArea: 'Coding', lastUpdated: item.updatedAt, collaborators: [membership.displayName], quickAction: 'Open' }))],
     teamActivity: projectActivities,
     currentInitiatives: projectInitiatives,
