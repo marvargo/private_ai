@@ -20,11 +20,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     authenticatedJson<Project[]>('/projects')
-      .then((loaded) => {
-        setProjects(loaded);
-        if (loaded[0]) setProjectId(loaded[0].id);
-      })
-      .catch(() => authenticatedJson<Project>('/projects/default', { method: 'POST', json: {} }).then((project) => { setProjects([project]); setProjectId(project.id); }));
+      .then(setProjects)
+      .catch(() => setProjects([]));
   }, []);
 
   useEffect(() => {
@@ -73,12 +70,12 @@ export default function ChatPage() {
     <main className="mx-auto grid max-w-7xl gap-6 p-4 md:grid-cols-[280px_1fr] md:p-8">
       <aside className="space-y-4 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
         <button className="w-full rounded-lg bg-cyan-400 px-4 py-2 font-semibold text-slate-950" type="button" onClick={newChat}>New chat</button>
-        <label className="block text-sm text-slate-300">Project<select className="mt-2 w-full rounded-lg bg-slate-950 p-2" value={projectId} onChange={(event) => setProjectId(event.target.value)}>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+        <label className="block text-sm text-slate-300">Workspace<select aria-label="Workspace" className="mt-2 w-full rounded-lg bg-slate-950 p-2" value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="">Personal workspace</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
         <input className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search conversations" />
         <div className="space-y-2 text-sm">{conversations.map((conversation) => <button key={conversation.id} type="button" onClick={() => openConversation(conversation.id)} className="block w-full rounded-lg border border-slate-800 px-3 py-2 text-left text-slate-300 hover:border-cyan-700">{conversation.pinnedAt ? '★ ' : ''}{conversation.title}</button>)}</div>
       </aside>
       <section className="space-y-6">
-        <header className="space-y-2"><p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">Private AI</p><h1 className="text-3xl font-bold">Chat</h1><p className="text-slate-400">Work inside projects. The platform automatically chooses the right private capability without exposing infrastructure or model details.</p></header>
+        <header className="space-y-2"><p className="text-sm font-semibold uppercase tracking-[0.3em] text-emerald-300">Private AI</p><h1 className="text-3xl font-bold">Chat</h1><p className="text-slate-400">{projectId ? 'Working in the selected project.' : 'Working in your personal workspace.'} The platform automatically chooses the right private capability without exposing infrastructure or model details.</p></header>
         <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
           <div className="min-h-80 space-y-3 rounded-xl bg-slate-950/70 p-4">{messages.length === 0 ? <p className="text-slate-500">Start a private conversation.</p> : messages.map((message, index) => <div key={index} className={message.role === 'user' ? 'text-cyan-100' : 'text-emerald-100'}><strong>{message.role === 'user' ? 'You' : 'Assistant'}:</strong> {message.content}</div>)}{loading ? <p className="text-slate-400">Preparing response…</p> : null}</div>
           {error ? <p className="mt-3 rounded-lg border border-red-900 bg-red-950/40 p-3 text-red-200">{error}</p> : null}

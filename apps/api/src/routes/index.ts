@@ -20,7 +20,7 @@ import { createLlama405BPodTemplate, createQwenCoderPodTemplate, createRunPodPod
 import { getSettings, patchSettings } from '../services/settings.js';
 import { getModelRuntimeLogs, getModelRuntimeStatus, pollModelRuntimes, restartModelRuntime, startModelRuntime, stopModelRuntime } from '../services/modelRuntimeHealth.js';
 import { addConversationMessage, createConversation, deleteConversation, getConversation, listConversationMessages, listConversations, updateConversation } from '../services/conversations.js';
-import { createProject, ensureDefaultProject, listProjects } from '../services/projects.js';
+import { createProject, deleteProject, getProject, listProjects, updateProject } from '../services/projects.js';
 import { acceptProjectInvitation, createInitiative, createProjectInvitation, favoriteProject, getProjectDashboard, listProjectCards, recordProjectActivity } from '../services/projectDashboard.js';
 import { privateChatCompletion, privateChatCompletionStream } from '../services/privateChat.js';
 import { createWorkspaceRecord, listWorkspaceRecords, usageSummary } from '../services/workspaces.js';
@@ -252,8 +252,10 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post('/projects/:projectId/activity', async (req) => recordProjectActivity({ projectId: (req.params as { projectId: string }).projectId, ...z.object({ actorName: z.string().min(1), actorType: z.enum(['user','ai','workflow','integration','system']).default('user'), action: z.string().min(1), targetTitle: z.string().min(1), projectSection: z.string().min(1), status: z.string().default('ok'), visibility: z.enum(['project','restricted']).default('project'), link: z.string().optional() }).parse(req.body ?? {}) }));
   app.post('/projects/:projectId/initiatives', async (req) => createInitiative({ projectId: (req.params as { projectId: string }).projectId, ...z.object({ name: z.string().min(1), description: z.string().optional(), ownerName: z.string().default('Project owner'), status: z.enum(['not_started','in_progress','blocked','completed']).default('in_progress'), progress: z.number().int().min(0).max(100).default(0), targetDate: z.string().optional(), contributors: z.array(z.string()).default([]), blockers: z.array(z.string()).default([]) }).parse(req.body ?? {}) }));
   app.get('/projects', async (req) => listProjects(req.authUser?.userId));
-  app.post('/projects', async (req) => createProject({ ...z.object({ name: z.string().min(1) }).parse(req.body ?? {}), ownerId: req.authUser?.userId }));
-  app.post('/projects/default', async (req) => ensureDefaultProject(req.authUser?.userId));
+  app.post('/projects', async (req) => createProject({ ...z.object({ name: z.string().min(1).max(120) }).parse(req.body ?? {}), ownerId: req.authUser?.userId }));
+  app.get('/projects/:projectId', async (req) => getProject((req.params as { projectId: string }).projectId, req.authUser?.userId));
+  app.patch('/projects/:projectId', async (req) => updateProject({ projectId: (req.params as { projectId: string }).projectId, ownerId: req.authUser?.userId, ...z.object({ name: z.string().min(1).max(120).optional(), archived: z.boolean().optional() }).parse(req.body ?? {}) }));
+  app.delete('/projects/:projectId', async (req) => deleteProject((req.params as { projectId: string }).projectId, req.authUser?.userId));
   app.get('/conversations', async (req) => { const query = z.object({ projectId: z.string().optional(), q: z.string().optional() }).parse(req.query); return listConversations(req.authUser?.userId, query.projectId, query.q); });
   app.post('/conversations', async (req) => createConversation({ ...z.object({ title: z.string().optional(), projectId: z.string().optional(), folder: z.string().optional(), settings: z.record(z.unknown()).optional() }).parse(req.body ?? {}), modelRole: 'auto', createdBy: req.authUser?.userId }));
   app.get('/conversations/:conversationId', async (req) => {
