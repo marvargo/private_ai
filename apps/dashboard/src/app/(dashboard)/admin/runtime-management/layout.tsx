@@ -8,6 +8,7 @@ const links = [
   ['Costs', '/admin/runtime-management/costs'],
   ['Logs', '/admin/runtime-management/logs'],
   ['Settings', '/admin/runtime-management/settings'],
+  ['Validation', '/admin/runtime-management/validation'],
 ];
 
 export default function RuntimeManagementLayout({ children }: { children: React.ReactNode }) {

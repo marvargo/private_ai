@@ -21,6 +21,7 @@ const USER_ROUTES = [
 
 const ADMIN_ROUTE_PREFIXES = [
   '/admin/runtime-management',
+  '/admin/production',
   '/settings', '/state', '/diagnostics', '/models', '/model', '/approvals', '/cost-events', '/credentials', '/feasibility', '/runpod', '/sessions', '/tasks', '/audit-logs', '/github', '/supabase',
 ];
 
