@@ -1,3 +1,4 @@
+import { AppError } from '../errors/AppError.js';
 import { ConcreteModelRole, ModelRegistryEntry, ModelRole } from '@wyndme/shared';
 import { getSupabaseAdminClient, isSupabaseConfigured } from '../repositories/supabaseClient.js';
 import { getRunPodPodLogs, startRunPodPod, stopRunPodPod } from './runpodLifecycle.js';
@@ -24,8 +25,6 @@ export interface HealthFetchResponse {
 export interface RuntimeHealthProviders {
   fetch?: (url: string, init?: RequestInit) => Promise<HealthFetchResponse>;
 }
-
-const healthHistory: RuntimeHealthResult[] = [];
 
 function stripPrefix(id: string) {
   return id.replace(/^(runtime|session)_/, '');
@@ -83,7 +82,6 @@ export async function checkModelRuntime(model: ModelRegistryEntry, providers: Ru
   const checkedAt = new Date().toISOString();
   if (!endpointUrl) {
     const result = { modelId: model.id, modelRole: model.modelRole, modelFamily: model.modelFamily, status: 'not_configured' as const, checkedAt, detail: 'No private endpoint configured' };
-    healthHistory.unshift(result);
     updateModelRuntimeStatus(model.id, result.status);
     await persistRuntimeHealth(model, result);
     return result;
@@ -105,7 +103,6 @@ export async function checkModelRuntime(model: ModelRegistryEntry, providers: Ru
     result = { modelId: model.id, modelRole: model.modelRole, modelFamily: model.modelFamily, endpointUrl, status: 'unhealthy', checkedAt, detail: error instanceof Error ? error.message : String(error) };
   }
 
-  healthHistory.unshift(result);
   updateModelRuntimeStatus(model.id, result.status, endpointUrl);
   await persistRuntimeHealth(model, result);
   await writeAudit({ actorType: 'system', action: 'model_runtime.health_check', targetType: 'model_runtime', targetId: model.id, status: result.status === 'healthy' ? 'ok' : 'failed', metadata: result as unknown as Record<string, unknown> });
@@ -121,7 +118,14 @@ export async function pollModelRuntimes(providers: RuntimeHealthProviders = {}) 
 }
 
 export async function getModelRuntimeStatus() {
-  return { models: listModelRegistry(), healthHistory: healthHistory.slice(0, 100) };
+  if (!isSupabaseConfigured()) {
+    throw new AppError({ message: 'Persistent runtime status storage is required', code: 'PERSISTENCE_REQUIRED', statusCode: 503 });
+  }
+  const { data, error } = await getSupabaseAdminClient().from('model_runtimes').select('*').order('last_health_check_at', { ascending: false }).limit(100);
+  if (error) {
+    throw new AppError({ message: 'Failed to read runtime status', code: 'RUNTIME_STATUS_READ_FAILED', statusCode: 503, cause: error });
+  }
+  return { runtimes: data ?? [] };
 }
 
 function findActiveSessionForRole(role: ConcreteModelRole) {
