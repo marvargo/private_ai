@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSession, createTask, listAuditLogs, listSessions, listTasks, updateSessionStatus } from './store.js';
+import { createSession, createTask, listAuditLogs, listSessions, listTasks, updateSessionStatus } from '../repositories/testing/orchestratorTestStore.js';
 
 describe('orchestrator store', () => {
   it('tracks sessions, tasks, and audit entries', () => {

@@ -5,7 +5,6 @@ import { listRunPodGpuTypes } from '../integrations/runpod.js';
 
 import { chatWithPrivateModel } from '../services/modelClient.js';
 import { env } from '../utils/env.js';
-import { getRuntimeStatus } from '../services/store.js';
 import { createSession, createTask, listAuditLogs, listCostEvents, listModelRegistry as listPersistentModelRegistry, listSessions, listTaskLogs, listTasks, snapshot, updateSessionStatus, updateTaskStatus, writeAudit } from '../services/orchestrator.js';
 import { summarizeTargetGpus } from '../services/runpodCatalog.js';
 import { listModelRegistry, selectModelForTask } from '../services/modelRegistry.js';
@@ -88,7 +87,6 @@ export async function registerRoutes(app: FastifyInstance) {
     privateByDefault: env.ALLOW_EXTERNAL_MODEL_PROVIDERS !== 'true',
     maxSessionHours: env.MAX_SESSION_HOURS,
     autoStopEnabled: env.AUTO_STOP_ENABLED === 'true',
-    runtime: getRuntimeStatus(),
     productionReadinessWarnings: productionReadinessWarnings(),
   }));
   app.get('/admin/production/validation', async () => listProductionGates());

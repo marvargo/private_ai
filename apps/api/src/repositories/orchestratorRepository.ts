@@ -1,6 +1,6 @@
 import { AiSession, AiTask, ModelRegistryEntry, RiskLevel, SessionStatus, TaskStatus } from '@wyndme/shared';
 import { getSupabaseAdminClient, isSupabaseConfigured } from './supabaseClient.js';
-import { AuditLogEntry, CostEvent, TaskLogEntry } from '../services/store.js';
+import { AuditLogEntry, CostEvent, TaskLogEntry } from './testing/orchestratorTestStore.js';
 
 type JsonRecord = Record<string, unknown>;
 

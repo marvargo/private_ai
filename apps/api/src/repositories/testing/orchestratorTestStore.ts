@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { AiSession, AiTask, ConcreteModelRole, ModelRegistryEntry, ModelRole, SessionStatus, TaskStatus } from '@wyndme/shared';
 import { DEFAULT_MAX_SESSION_HOURS, PRIMARY_MODEL_ID } from '@wyndme/shared';
-import { listModelRegistry, selectModelForTask } from './modelRegistry.js';
+import { listModelRegistry, selectModelForTask } from '../../services/modelRegistry.js';
 
 export interface AuditLogEntry {
   id: string;

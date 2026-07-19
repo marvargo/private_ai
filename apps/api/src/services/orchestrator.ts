@@ -25,7 +25,7 @@ import {
   writeAudit as writeTestAudit,
   writeCostEvent as writeTestCostEvent,
   writeTaskLog as writeTestTaskLog,
-} from './store.js';
+} from '../repositories/testing/orchestratorTestStore.js';
 
 function persistenceEnabled() {
   return orchestratorRepository.isConfigured();
