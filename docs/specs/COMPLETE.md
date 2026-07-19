@@ -1,0 +1,1 @@
+The specification set is complete and should be executed from `CODEX_START_PROMPT.md`.
