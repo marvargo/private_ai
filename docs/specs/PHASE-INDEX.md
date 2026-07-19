@@ -1,0 +1,26 @@
+# Phase index
+
+- Phase 00: Operations and credential bootstrap
+- Phase 01: Durable repositories
+- Phase 02: SQL helpers, RLS, authorization
+- Phase 03: Standalone workspace and optional projects
+- Phase 04: Project management
+- Phase 05: Memberships, invitations, permissions
+- Phase 06: Tasks, initiatives, approvals, collaboration
+- Phase 07: Collaborative project dashboard
+- Phase 08: Complete chat and true streaming
+- Phase 09: Privacy and encryption
+- Phase 10: Privacy-safe analytics
+- Phase 11: Runtime Management
+- Phase 12: Lifecycle and GPU configuration
+- Phase 13: Generic autoscaling
+- Phase 14: Multi-runtime routing and queues
+- Phase 15: Costs, reconciliation, budgets
+- Phase 16: Coding workspace
+- Phase 17: Workflows
+- Phase 18: Integrations and MCP
+- Phase 19: Image Studio
+- Phase 20: Video Studio and long-form movies
+- Phase 21: Automated validation
+- Phase 22: Llama 405B validation
+- Phase 23: Deployment and production gates
