@@ -1,0 +1,1 @@
+Use `CODEX_START_PROMPT.md` as the short instruction and the remaining files as the durable source of truth.
